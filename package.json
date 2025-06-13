@@ -2,7 +2,13 @@
   "name": "npm-package-search",
   "displayName": "NPM Package Search",
   "description": "Search npm packages and get version info directly in VS Code",
+  "icon": "icon-vsce-npm.png",
   "version": "1.0.0",
+  "publisher": "Quikturn",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/whrit/vsc-npm-search.git"
+  },
   "engines": {
     "vscode": "^1.96.2"
   },
@@ -48,10 +54,12 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "pretest": "pnpm run compile && pnpm run lint",
-    "test": "node ./out/test/runTest.js"
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package --no-dependencies",
+    "publish": "vsce publish --no-dependencies"
   },
   "keywords": [],
-  "author": "",
+  "author": "Beckett Whritenour",
   "license": "ISC",
   "packageManager": "pnpm@10.11.1",
   "dependencies": {
@@ -60,7 +68,7 @@
   "devDependencies": {
     "@eslint/js": "^9.28.0",
     "@types/node": "^24.0.1",
-    "@types/vscode": "^1.101.0",
+    "@types/vscode": "^1.96.0",
     "@typescript-eslint/eslint-plugin": "^8.34.0",
     "@typescript-eslint/parser": "^8.34.0",
     "eslint": "^9.28.0",
