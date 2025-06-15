@@ -42,8 +42,8 @@
     "keybindings": [
       {
         "command": "npmSearch.searchPackage",
-        "key": "ctrl+shift+n",
-        "mac": "cmd+shift+n"
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t"
       }
     ]
   },
