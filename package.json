@@ -3,7 +3,7 @@
   "displayName": "NPM Package Search",
   "description": "Search npm packages and get version info directly in VS Code",
   "icon": "icon-vsce-npm.png",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "Quikturn",
   "repository": {
     "type": "git",

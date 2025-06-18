@@ -7,17 +7,16 @@ export class UIHelper {
   ): Promise<PackageSearchResult | undefined> {
     const items = packages.map((result) => {
       const pkg = result.package;
-      const score = Math.round(result.score.final * 100);
       const flags = this._getPackageFlags(result.flags);
 
       return {
         label: `$(package) ${pkg.name}${flags}`,
-        description: `v${pkg.version} • Score: ${score}%`,
+        description: `v${pkg.version}`,
         detail: pkg.description || 'No description available',
         buttons: [
           {
-            iconPath: new vscode.ThemeIcon('star'),
-            tooltip: `Quality: ${Math.round(result.score.detail.quality * 100)}%, Popularity: ${Math.round(result.score.detail.popularity * 100)}%, Maintenance: ${Math.round(result.score.detail.maintenance * 100)}%`,
+            iconPath: new vscode.ThemeIcon('info'),
+            tooltip: 'View package details',
           },
         ],
         result: result,
@@ -38,7 +37,6 @@ export class UIHelper {
   ): Promise<SearchSuggestion | undefined> {
     const items = suggestions.map((suggestion) => {
       const pkg = suggestion.package;
-      const score = Math.round(suggestion.score.final * 100);
       const flags = this._getPackageFlags(suggestion.flags);
 
       // Use highlight if available, otherwise use regular name
@@ -48,7 +46,7 @@ export class UIHelper {
 
       return {
         label: `$(package) ${label}${flags}`,
-        description: `v${pkg.version} • Score: ${score}%`,
+        description: `v${pkg.version}`,
         detail: pkg.description || 'No description available',
         suggestion: suggestion,
       };
@@ -157,7 +155,6 @@ export class UIHelper {
     outputChannel.clear();
 
     const pkg = result.package;
-    const score = result.score;
 
     outputChannel.appendLine(`📦 Package: ${pkg.name}`);
     outputChannel.appendLine(`📌 Version: ${pkg.version}`);
@@ -175,12 +172,6 @@ export class UIHelper {
         outputChannel.appendLine(`  - INSECURE: Has security vulnerabilities`);
       }
     }
-
-    outputChannel.appendLine('\n📊 Scores:');
-    outputChannel.appendLine(`  - Overall: ${Math.round(score.final * 100)}%`);
-    outputChannel.appendLine(`  - Quality: ${Math.round(score.detail.quality * 100)}%`);
-    outputChannel.appendLine(`  - Popularity: ${Math.round(score.detail.popularity * 100)}%`);
-    outputChannel.appendLine(`  - Maintenance: ${Math.round(score.detail.maintenance * 100)}%`);
 
     outputChannel.appendLine('\n🔗 Links:');
     outputChannel.appendLine(`  - NPM: https://www.npmjs.com/package/${pkg.name}`);
