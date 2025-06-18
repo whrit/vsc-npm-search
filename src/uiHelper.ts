@@ -213,44 +213,67 @@ export class UIHelper {
     const outputChannel = vscode.window.createOutputChannel('NPM Package Details');
     outputChannel.clear();
 
-    const metadata = packageInfo.collected.metadata;
-    const npm = packageInfo.collected.npm;
-    const github = packageInfo.collected.github;
-    const score = packageInfo.score;
+    outputChannel.appendLine(`📦 Package: ${packageInfo.name}`);
+    outputChannel.appendLine(`📌 Version: ${packageInfo.version}`);
+    outputChannel.appendLine(`📝 Description: ${packageInfo.description || 'No description'}`);
+    outputChannel.appendLine(`🕐 Published: ${new Date(packageInfo.publishedAt).toLocaleString()}`);
 
-    outputChannel.appendLine(`📦 Package: ${metadata.name}`);
-    outputChannel.appendLine(`📌 Version: ${metadata.version}`);
-    outputChannel.appendLine(`📝 Description: ${metadata.description || 'No description'}`);
-    outputChannel.appendLine(`🕐 Analyzed: ${new Date(packageInfo.analyzedAt).toLocaleString()}`);
-
-    outputChannel.appendLine('\n📊 Scores:');
-    outputChannel.appendLine(`  - Overall: ${Math.round(score.final * 100)}%`);
-    outputChannel.appendLine(`  - Quality: ${Math.round(score.detail.quality * 100)}%`);
-    outputChannel.appendLine(`  - Popularity: ${Math.round(score.detail.popularity * 100)}%`);
-    outputChannel.appendLine(`  - Maintenance: ${Math.round(score.detail.maintenance * 100)}%`);
-
-    outputChannel.appendLine('\n📈 NPM Stats:');
-    outputChannel.appendLine(`  - Dependents: ${npm.dependentsCount}`);
-    if (npm.downloads.length > 0) {
-      const lastMonth = npm.downloads[npm.downloads.length - 1];
-      outputChannel.appendLine(`  - Downloads (last month): ${lastMonth.count.toLocaleString()}`);
+    if (packageInfo.license) {
+      outputChannel.appendLine(`📄 License: ${packageInfo.license}`);
     }
 
-    if (github) {
-      outputChannel.appendLine('\n🐙 GitHub Stats:');
-      outputChannel.appendLine(`  - Stars: ${github.starsCount.toLocaleString()}`);
-      outputChannel.appendLine(`  - Forks: ${github.forksCount.toLocaleString()}`);
-      outputChannel.appendLine(`  - Open Issues: ${github.issues.openCount}`);
+    outputChannel.appendLine('\n🔗 Links:');
+    outputChannel.appendLine(`  - NPM: ${packageInfo.links.npm}`);
+    if (packageInfo.links.homepage) {
+      outputChannel.appendLine(`  - Homepage: ${packageInfo.links.homepage}`);
+    }
+    if (packageInfo.links.repository) {
+      outputChannel.appendLine(`  - Repository: ${packageInfo.links.repository}`);
+    }
+    if (packageInfo.links.bugs) {
+      outputChannel.appendLine(`  - Issues: ${packageInfo.links.bugs}`);
     }
 
     outputChannel.appendLine('\n📥 Install Commands:');
-    outputChannel.appendLine(`  pnpm:  pnpm add ${metadata.name}`);
-    outputChannel.appendLine(`  npm:   npm install ${metadata.name}`);
-    outputChannel.appendLine(`  yarn:  yarn add ${metadata.name}`);
+    outputChannel.appendLine(`  pnpm:  pnpm add ${packageInfo.name}`);
+    outputChannel.appendLine(`  npm:   npm install ${packageInfo.name}`);
+    outputChannel.appendLine(`  yarn:  yarn add ${packageInfo.name}`);
 
-    if (metadata.dependencies && Object.keys(metadata.dependencies).length > 0) {
+    if (packageInfo.keywords && packageInfo.keywords.length > 0) {
+      outputChannel.appendLine(`\n🏷️  Keywords: ${packageInfo.keywords.join(', ')}`);
+    }
+
+    if (packageInfo.author) {
+      outputChannel.appendLine(`\n👤 Author: ${packageInfo.author.name || 'Unknown'}`);
+      if (packageInfo.author.email) {
+        outputChannel.appendLine(`   Email: ${packageInfo.author.email}`);
+      }
+    }
+
+    if (packageInfo.maintainers && packageInfo.maintainers.length > 0) {
+      outputChannel.appendLine('\n👥 Maintainers:');
+      packageInfo.maintainers.forEach((maintainer) => {
+        outputChannel.appendLine(`  - ${maintainer.name} (${maintainer.email})`);
+      });
+    }
+
+    if (packageInfo.dependencies && Object.keys(packageInfo.dependencies).length > 0) {
       outputChannel.appendLine('\n📦 Dependencies:');
-      Object.entries(metadata.dependencies).forEach(([dep, version]) => {
+      Object.entries(packageInfo.dependencies).forEach(([dep, version]) => {
+        outputChannel.appendLine(`  - ${dep}: ${version}`);
+      });
+    }
+
+    if (packageInfo.devDependencies && Object.keys(packageInfo.devDependencies).length > 0) {
+      outputChannel.appendLine('\n🔧 Dev Dependencies:');
+      Object.entries(packageInfo.devDependencies).forEach(([dep, version]) => {
+        outputChannel.appendLine(`  - ${dep}: ${version}`);
+      });
+    }
+
+    if (packageInfo.peerDependencies && Object.keys(packageInfo.peerDependencies).length > 0) {
+      outputChannel.appendLine('\n🤝 Peer Dependencies:');
+      Object.entries(packageInfo.peerDependencies).forEach(([dep, version]) => {
         outputChannel.appendLine(`  - ${dep}: ${version}`);
       });
     }

@@ -155,7 +155,7 @@ export function activate(context: vscode.ExtensionContext): void {
         async () => {
           const packageInfo = await npmsService.getPackageInfo(packageName);
 
-          const version = packageInfo.collected.metadata.version;
+          const version = packageInfo.version;
           const message = `Latest version of ${packageName}: ${version}`;
 
           const action = await vscode.window.showInformationMessage(
