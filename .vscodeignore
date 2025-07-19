@@ -10,3 +10,13 @@ vsc-extension-quickstart.md
 **/*.ts
 .prettierrc
 .eslintcache
+pnpm-lock.yaml
+.github/**
+CONTRIBUTING.md
+CHANGELOG.md
+eslint.config.mjs
+*.log
+dist/**
+node_modules/**
+.DS_Store
+*.vsix

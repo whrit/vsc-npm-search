@@ -242,12 +242,353 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
+  // NEW COMMANDS
+
+  // Command: View Package Version History
+  const versionHistoryCommand = vscode.commands.registerCommand(
+    'npmSearch.viewVersionHistory',
+    async () => {
+      try {
+        const packageName = await vscode.window.showInputBox({
+          prompt: 'Enter npm package name to view version history',
+          placeHolder: 'e.g., express, react, lodash',
+        });
+
+        if (!packageName) {
+          return;
+        }
+
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Getting version history for "${packageName}"...`,
+            cancellable: false,
+          },
+          async () => {
+            const versionHistory = await npmsService.getPackageVersionHistory(packageName);
+            uiHelper.showVersionHistory(versionHistory);
+          },
+        );
+      } catch (error) {
+        vscode.window.showErrorMessage(`Error getting version history: ${String(error)}`);
+      }
+    },
+  );
+
+  // Command: Search Selected Text
+  const searchSelectedTextCommand = vscode.commands.registerCommand(
+    'npmSearch.searchSelectedText',
+    async () => {
+      try {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+          vscode.window.showInformationMessage('No active editor found');
+          return;
+        }
+
+        const selection = editor.selection;
+        const text = editor.document.getText(selection);
+
+        if (!text.trim()) {
+          vscode.window.showInformationMessage('No text selected');
+          return;
+        }
+
+        // Extract package names from selected text
+        const packageNames = npmsService.extractPackageNamesFromText(text);
+
+        if (packageNames.length === 0) {
+          vscode.window.showInformationMessage('No package names found in selected text');
+          return;
+        }
+
+        if (packageNames.length === 1) {
+          // Single package - search directly
+          const packageName = packageNames[0];
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Searching for "${packageName}"...`,
+              cancellable: false,
+            },
+            async () => {
+              const results = await npmsService.searchPackages(packageName);
+              if (results.results.length > 0) {
+                const selected = await uiHelper.showPackageQuickPick(results.results);
+                if (selected) {
+                  await uiHelper.showPackageDetails(selected);
+                }
+              } else {
+                vscode.window.showInformationMessage(`No packages found for "${packageName}"`);
+              }
+            },
+          );
+        } else {
+          // Multiple packages - let user choose
+          const selectedPackage = await vscode.window.showQuickPick(packageNames, {
+            placeHolder: 'Select a package to search',
+          });
+
+          if (selectedPackage) {
+            await vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: `Searching for "${selectedPackage}"...`,
+                cancellable: false,
+              },
+              async () => {
+                const results = await npmsService.searchPackages(selectedPackage);
+                if (results.results.length > 0) {
+                  const selected = await uiHelper.showPackageQuickPick(results.results);
+                  if (selected) {
+                    await uiHelper.showPackageDetails(selected);
+                  }
+                } else {
+                  vscode.window.showInformationMessage(
+                    `No packages found for "${selectedPackage}"`,
+                  );
+                }
+              },
+            );
+          }
+        }
+      } catch (error) {
+        vscode.window.showErrorMessage(`Error searching selected text: ${String(error)}`);
+      }
+    },
+  );
+
+  // Command: Search Multiple Selected Packages
+  const searchMultiplePackagesCommand = vscode.commands.registerCommand(
+    'npmSearch.searchMultiplePackages',
+    async () => {
+      try {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+          vscode.window.showInformationMessage('No active editor found');
+          return;
+        }
+
+        const selection = editor.selection;
+        const text = editor.document.getText(selection);
+
+        if (!text.trim()) {
+          vscode.window.showInformationMessage('No text selected');
+          return;
+        }
+
+        // Extract package names from selected text
+        const packageNames = npmsService.extractPackageNamesFromText(text);
+
+        if (packageNames.length === 0) {
+          vscode.window.showInformationMessage('No package names found in selected text');
+          return;
+        }
+
+        // Let user select multiple packages
+        const selectedPackages = await vscode.window.showQuickPick(packageNames, {
+          placeHolder: 'Select packages to search (use space to select multiple)',
+          canPickMany: true,
+        });
+
+        if (!selectedPackages || selectedPackages.length === 0) {
+          return;
+        }
+
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Searching for ${selectedPackages.length} packages...`,
+            cancellable: false,
+          },
+          async () => {
+            const results = await npmsService.searchPackagesByNames(selectedPackages);
+            uiHelper.showSearchResultsByPackage(results);
+          },
+        );
+      } catch (error) {
+        vscode.window.showErrorMessage(`Error searching multiple packages: ${String(error)}`);
+      }
+    },
+  );
+
+  // Command: Analyze Package.json
+  const analyzePackageJsonCommand = vscode.commands.registerCommand(
+    'npmSearch.analyzePackageJson',
+    async () => {
+      try {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+          vscode.window.showInformationMessage('No active editor found');
+          return;
+        }
+
+        const document = editor.document;
+        const text = document.getText();
+
+        if (!text.trim()) {
+          vscode.window.showInformationMessage('No content found in current file');
+          return;
+        }
+
+        try {
+          const packageJsonInfo = npmsService.parsePackageJsonFromText(text);
+          uiHelper.showPackageJsonInfo(packageJsonInfo);
+
+          // Ask if user wants to search any dependencies
+          const allDeps = [
+            ...packageJsonInfo.dependencies,
+            ...packageJsonInfo.devDependencies,
+            ...packageJsonInfo.peerDependencies,
+            ...packageJsonInfo.optionalDependencies,
+          ];
+
+          if (allDeps.length > 0) {
+            const action = await vscode.window.showInformationMessage(
+              `Found ${allDeps.length} dependencies. Would you like to search any of them?`,
+              'Search Single',
+              'Search Multiple',
+              'No Thanks',
+            );
+
+            if (action === 'Search Single') {
+              const selected = await uiHelper.showDependencyQuickPick(allDeps);
+              if (selected) {
+                await vscode.window.withProgress(
+                  {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Searching for "${selected.name}"...`,
+                    cancellable: false,
+                  },
+                  async () => {
+                    const results = await npmsService.searchPackages(selected.name);
+                    if (results.results.length > 0) {
+                      const result = await uiHelper.showPackageQuickPick(results.results);
+                      if (result) {
+                        await uiHelper.showPackageDetails(result);
+                      }
+                    } else {
+                      vscode.window.showInformationMessage(
+                        `No packages found for "${selected.name}"`,
+                      );
+                    }
+                  },
+                );
+              }
+            } else if (action === 'Search Multiple') {
+              const selected = await uiHelper.showMultipleDependenciesQuickPick(allDeps);
+              if (selected.length > 0) {
+                await vscode.window.withProgress(
+                  {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Searching for ${selected.length} packages...`,
+                    cancellable: false,
+                  },
+                  async () => {
+                    const packageNames = selected.map((dep) => dep.name);
+                    const results = await npmsService.searchPackagesByNames(packageNames);
+                    uiHelper.showSearchResultsByPackage(results);
+                  },
+                );
+              }
+            }
+          }
+        } catch {
+          vscode.window.showErrorMessage('Invalid package.json format');
+        }
+      } catch (error) {
+        vscode.window.showErrorMessage(`Error analyzing package.json: ${String(error)}`);
+      }
+    },
+  );
+
+  // Command: Search from Clipboard
+  const searchFromClipboardCommand = vscode.commands.registerCommand(
+    'npmSearch.searchFromClipboard',
+    async () => {
+      try {
+        const clipboardText = await vscode.env.clipboard.readText();
+
+        if (!clipboardText.trim()) {
+          vscode.window.showInformationMessage('No text found in clipboard');
+          return;
+        }
+
+        // Extract package names from clipboard text
+        const packageNames = npmsService.extractPackageNamesFromText(clipboardText);
+
+        if (packageNames.length === 0) {
+          vscode.window.showInformationMessage('No package names found in clipboard text');
+          return;
+        }
+
+        if (packageNames.length === 1) {
+          // Single package - search directly
+          const packageName = packageNames[0];
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Searching for "${packageName}"...`,
+              cancellable: false,
+            },
+            async () => {
+              const results = await npmsService.searchPackages(packageName);
+              if (results.results.length > 0) {
+                const selected = await uiHelper.showPackageQuickPick(results.results);
+                if (selected) {
+                  await uiHelper.showPackageDetails(selected);
+                }
+              } else {
+                vscode.window.showInformationMessage(`No packages found for "${packageName}"`);
+              }
+            },
+          );
+        } else {
+          // Multiple packages - let user choose
+          const selectedPackage = await vscode.window.showQuickPick(packageNames, {
+            placeHolder: 'Select a package to search',
+          });
+
+          if (selectedPackage) {
+            await vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: `Searching for "${selectedPackage}"...`,
+                cancellable: false,
+              },
+              async () => {
+                const results = await npmsService.searchPackages(selectedPackage);
+                if (results.results.length > 0) {
+                  const selected = await uiHelper.showPackageQuickPick(results.results);
+                  if (selected) {
+                    await uiHelper.showPackageDetails(selected);
+                  }
+                } else {
+                  vscode.window.showInformationMessage(
+                    `No packages found for "${selectedPackage}"`,
+                  );
+                }
+              },
+            );
+          }
+        }
+      } catch (error) {
+        vscode.window.showErrorMessage(`Error searching from clipboard: ${String(error)}`);
+      }
+    },
+  );
+
   context.subscriptions.push(
     searchCommand,
     advancedSearchCommand,
     suggestionsCommand,
     versionCommand,
     installCommand,
+    versionHistoryCommand,
+    searchSelectedTextCommand,
+    searchMultiplePackagesCommand,
+    analyzePackageJsonCommand,
+    searchFromClipboardCommand,
   );
 }
 

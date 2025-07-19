@@ -1,5 +1,12 @@
 import * as vscode from 'vscode';
-import { PackageSearchResult, SearchSuggestion, PackageInfo } from './npmService';
+import {
+  PackageSearchResult,
+  SearchSuggestion,
+  PackageInfo,
+  PackageVersionHistory,
+  PackageJsonInfo,
+  PackageJsonDependency,
+} from './npmService';
 
 export class UIHelper {
   async showPackageQuickPick(
@@ -267,6 +274,185 @@ export class UIHelper {
       Object.entries(packageInfo.peerDependencies).forEach(([dep, version]) => {
         outputChannel.appendLine(`  - ${dep}: ${version}`);
       });
+    }
+
+    outputChannel.show();
+  }
+
+  showVersionHistory(versionHistory: PackageVersionHistory): void {
+    const outputChannel = vscode.window.createOutputChannel('NPM Package Version History');
+    outputChannel.clear();
+
+    outputChannel.appendLine(`📦 Package: ${versionHistory.name}`);
+    outputChannel.appendLine(`📊 Total Versions: ${versionHistory.totalVersions}`);
+    outputChannel.appendLine(
+      `📋 Showing: ${versionHistory.versions.length} most recent versions\n`,
+    );
+
+    for (const version of versionHistory.versions) {
+      outputChannel.appendLine(`🔸 Version: ${version.version}`);
+      outputChannel.appendLine(
+        `   📅 Published: ${new Date(version.publishedAt).toLocaleString()}`,
+      );
+
+      if (version.description) {
+        outputChannel.appendLine(`   📝 Description: ${version.description}`);
+      }
+
+      if (version.license) {
+        outputChannel.appendLine(`   📄 License: ${version.license}`);
+      }
+
+      if (version.author) {
+        outputChannel.appendLine(`   👤 Author: ${version.author.name || 'Unknown'}`);
+      }
+
+      if (version.dependencies && Object.keys(version.dependencies).length > 0) {
+        outputChannel.appendLine(`   📦 Dependencies: ${Object.keys(version.dependencies).length}`);
+      }
+
+      if (version.devDependencies && Object.keys(version.devDependencies).length > 0) {
+        outputChannel.appendLine(
+          `   🔧 Dev Dependencies: ${Object.keys(version.devDependencies).length}`,
+        );
+      }
+
+      outputChannel.appendLine('');
+    }
+
+    outputChannel.show();
+  }
+
+  showPackageJsonInfo(packageJsonInfo: PackageJsonInfo): void {
+    const outputChannel = vscode.window.createOutputChannel('Package.json Analysis');
+    outputChannel.clear();
+
+    outputChannel.appendLine('📋 Package.json Dependencies Analysis\n');
+
+    const allDeps = [
+      ...packageJsonInfo.dependencies.map((dep) => ({ ...dep, type: 'Dependency' })),
+      ...packageJsonInfo.devDependencies.map((dep) => ({ ...dep, type: 'Dev Dependency' })),
+      ...packageJsonInfo.peerDependencies.map((dep) => ({ ...dep, type: 'Peer Dependency' })),
+      ...packageJsonInfo.optionalDependencies.map((dep) => ({
+        ...dep,
+        type: 'Optional Dependency',
+      })),
+    ];
+
+    if (allDeps.length === 0) {
+      outputChannel.appendLine('No dependencies found in package.json');
+    } else {
+      outputChannel.appendLine(`Total Dependencies: ${allDeps.length}\n`);
+
+      // Group by type
+      const grouped = allDeps.reduce(
+        (acc, dep) => {
+          if (!acc[dep.type]) {
+            acc[dep.type] = [];
+          }
+          acc[dep.type].push(dep);
+          return acc;
+        },
+        {} as Record<string, typeof allDeps>,
+      );
+
+      for (const [type, deps] of Object.entries(grouped)) {
+        outputChannel.appendLine(`📦 ${type}s (${deps.length}):`);
+        deps.forEach((dep) => {
+          outputChannel.appendLine(`  - ${dep.name}: ${dep.version}`);
+        });
+        outputChannel.appendLine('');
+      }
+    }
+
+    outputChannel.show();
+  }
+
+  async showDependencyQuickPick(
+    dependencies: PackageJsonDependency[],
+  ): Promise<PackageJsonDependency | undefined> {
+    const items = dependencies.map((dep) => ({
+      label: `$(package) ${dep.name}`,
+      description: `${dep.version} (${dep.type})`,
+      detail: `Type: ${dep.type}`,
+      dep,
+    }));
+
+    const selected = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Select a dependency to search',
+      matchOnDescription: true,
+      matchOnDetail: true,
+    });
+
+    return selected?.dep;
+  }
+
+  async showMultipleDependenciesQuickPick(
+    dependencies: PackageJsonDependency[],
+  ): Promise<PackageJsonDependency[]> {
+    const items = dependencies.map((dep) => ({
+      label: `$(package) ${dep.name}`,
+      description: `${dep.version} (${dep.type})`,
+      detail: `Type: ${dep.type}`,
+      dep,
+      picked: false,
+    }));
+
+    const selected = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Select dependencies to search (use space to select multiple)',
+      matchOnDescription: true,
+      matchOnDetail: true,
+      canPickMany: true,
+    });
+
+    return selected?.map((item) => item.dep) || [];
+  }
+
+  async showVersionQuickPick(
+    versions: { version: string; publishedAt: string }[],
+  ): Promise<string | undefined> {
+    const items = versions.map((version) => ({
+      label: `$(tag) ${version.version}`,
+      description: new Date(version.publishedAt).toLocaleDateString(),
+      detail: `Published: ${new Date(version.publishedAt).toLocaleString()}`,
+      version: version.version,
+    }));
+
+    const selected = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Select a version to view details',
+      matchOnDescription: true,
+      matchOnDetail: true,
+    });
+
+    return selected?.version;
+  }
+
+  showSearchResultsByPackage(results: Record<string, PackageSearchResult[]>): void {
+    const outputChannel = vscode.window.createOutputChannel('NPM Search Results');
+    outputChannel.clear();
+
+    outputChannel.appendLine('🔍 Search Results by Package\n');
+
+    for (const [packageName, searchResults] of Object.entries(results)) {
+      outputChannel.appendLine(`📦 ${packageName}:`);
+
+      if (searchResults.length === 0) {
+        outputChannel.appendLine('  No results found');
+      } else {
+        searchResults.forEach((result, index) => {
+          const pkg = result.package;
+          const flags = this._getPackageFlags(result.flags);
+
+          outputChannel.appendLine(`  ${index + 1}. ${pkg.name}@${pkg.version}${flags}`);
+          outputChannel.appendLine(`     Score: ${result.score.final.toFixed(2)}`);
+          if (pkg.description) {
+            outputChannel.appendLine(`     Description: ${pkg.description}`);
+          }
+          outputChannel.appendLine('');
+        });
+      }
+
+      outputChannel.appendLine('');
     }
 
     outputChannel.show();
