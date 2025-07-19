@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2024-12-19
+
+### Fixed
+
+- Optimized VSIX package size by excluding unnecessary files
+- Improved .vscodeignore configuration
+- Reduced package size by 40.8% (from 49.96 KB to 29.6 KB)
+
+### Enhanced
+
+- Better package organization for marketplace distribution
+- Excluded development files, CI/CD configurations, and documentation from published extension
+
 ## [1.1.0] - 2024-12-19
 
 ### Added
