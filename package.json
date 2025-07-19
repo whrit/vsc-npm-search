@@ -3,7 +3,7 @@
   "displayName": "NPM Package Search",
   "description": "Search npm packages and get version info directly in VS Code",
   "icon": "icon-vsce-npm.png",
-  "version": "1.0.3",
+  "version": "1.1.1",
   "publisher": "Quikturn",
   "repository": {
     "type": "git",
@@ -37,6 +37,26 @@
       {
         "command": "npmSearch.searchSuggestions",
         "title": "NPM: Search Suggestions"
+      },
+      {
+        "command": "npmSearch.viewVersionHistory",
+        "title": "NPM: View Package Version History"
+      },
+      {
+        "command": "npmSearch.searchSelectedText",
+        "title": "NPM: Search Selected Text"
+      },
+      {
+        "command": "npmSearch.searchMultiplePackages",
+        "title": "NPM: Search Multiple Selected Packages"
+      },
+      {
+        "command": "npmSearch.analyzePackageJson",
+        "title": "NPM: Analyze Package.json"
+      },
+      {
+        "command": "npmSearch.searchFromClipboard",
+        "title": "NPM: Search from Clipboard"
       }
     ],
     "keybindings": [
@@ -44,8 +64,27 @@
         "command": "npmSearch.searchPackage",
         "key": "ctrl+shift+t",
         "mac": "cmd+shift+t"
+      },
+      {
+        "command": "npmSearch.searchSelectedText",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+n"
       }
-    ]
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "npmSearch.searchSelectedText",
+          "group": "npm-search",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "npmSearch.searchMultiplePackages",
+          "group": "npm-search",
+          "when": "editorHasSelection"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "pnpm run lint && pnpm run compile",
@@ -53,28 +92,36 @@
     "watch": "tsc -watch -p ./",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "pretest": "pnpm run compile && pnpm run lint",
-    "test": "node ./out/test/runTest.js",
     "package": "vsce package --no-dependencies",
-    "publish": "vsce publish --no-dependencies"
+    "publish": "vsce publish --no-dependencies",
+    "deploy": "vsce publish --no-dependencies"
   },
-  "keywords": [],
+  "keywords": [
+    "npm",
+    "package",
+    "search",
+    "registry",
+    "dependencies",
+    "version",
+    "package.json"
+  ],
   "author": "Beckett Whritenour",
   "license": "ISC",
-  "packageManager": "pnpm@10.11.1",
+  "packageManager": "pnpm@10.13.1",
   "dependencies": {
-    "axios": "^1.9.0"
+    "axios": "^1.10.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.28.0",
-    "@types/node": "^24.0.1",
+    "@eslint/js": "^9.31.0",
+    "@types/node": "^24.0.15",
     "@types/vscode": "^1.96.0",
-    "@typescript-eslint/eslint-plugin": "^8.34.0",
-    "@typescript-eslint/parser": "^8.34.0",
-    "eslint": "^9.28.0",
-    "eslint-config-prettier": "^10.1.5",
-    "eslint-plugin-prettier": "^5.4.1",
+    "@typescript-eslint/eslint-plugin": "^8.37.0",
+    "@typescript-eslint/parser": "^8.37.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.3",
     "prettier": "^3.5.3",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "@vscode/vsce": "^3.0.0"
   }
 }

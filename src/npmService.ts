@@ -214,6 +214,40 @@ export interface PackageInfo {
   };
 }
 
+export interface VersionInfo {
+  version: string;
+  publishedAt: string;
+  description?: string;
+  dependencies?: { [key: string]: string };
+  devDependencies?: { [key: string]: string };
+  peerDependencies?: { [key: string]: string };
+  license?: string;
+  author?: {
+    name: string;
+    email?: string;
+    url?: string;
+  };
+}
+
+export interface PackageVersionHistory {
+  name: string;
+  versions: VersionInfo[];
+  totalVersions: number;
+}
+
+export interface PackageJsonDependency {
+  name: string;
+  version: string;
+  type: 'dependency' | 'devDependency' | 'peerDependency' | 'optionalDependency';
+}
+
+export interface PackageJsonInfo {
+  dependencies: PackageJsonDependency[];
+  devDependencies: PackageJsonDependency[];
+  peerDependencies: PackageJsonDependency[];
+  optionalDependencies: PackageJsonDependency[];
+}
+
 export class NpmsService {
   private readonly _registryUrl = 'https://registry.npmjs.org';
   private readonly _searchUrl = 'http://registry.npmjs.com';
@@ -367,6 +401,172 @@ export class NpmsService {
     } catch (error) {
       console.error('Error getting multiple packages info:', error);
       throw new Error('Failed to get packages information');
+    }
+  }
+
+  async getPackageVersionHistory(packageName: string, limit = 50): Promise<PackageVersionHistory> {
+    try {
+      const response = await axios.get<NpmRegistryPackageInfo>(
+        `${this._registryUrl}/${encodeURIComponent(packageName)}`,
+      );
+
+      const data = response.data;
+      const versions: VersionInfo[] = [];
+      const versionEntries = Object.entries(data.versions);
+
+      // Sort versions by publish date (newest first)
+      const sortedVersions = versionEntries
+        .map(([version, versionData]) => ({
+          version,
+          versionData,
+          publishedAt: data.time[version] || data.time.modified,
+        }))
+        .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+        .slice(0, limit);
+
+      for (const { version, versionData, publishedAt } of sortedVersions) {
+        versions.push({
+          version,
+          publishedAt,
+          description: versionData.description,
+          dependencies: versionData.dependencies,
+          devDependencies: versionData.devDependencies,
+          peerDependencies: versionData.peerDependencies,
+          license: versionData.license,
+          author: versionData.author,
+        });
+      }
+
+      return {
+        name: data.name,
+        versions,
+        totalVersions: Object.keys(data.versions).length,
+      };
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        throw new Error(`Package "${packageName}" not found`);
+      }
+      console.error('Error getting package version history:', error);
+      throw new Error('Failed to get package version history');
+    }
+  }
+
+  parsePackageJsonFromText(text: string): PackageJsonInfo {
+    try {
+      const packageJson = JSON.parse(text) as Record<string, unknown>;
+      const result: PackageJsonInfo = {
+        dependencies: [],
+        devDependencies: [],
+        peerDependencies: [],
+        optionalDependencies: [],
+      };
+
+      if (packageJson.dependencies && typeof packageJson.dependencies === 'object') {
+        result.dependencies = Object.entries(
+          packageJson.dependencies as Record<string, string>,
+        ).map(([name, version]) => ({
+          name,
+          version,
+          type: 'dependency' as const,
+        }));
+      }
+
+      if (packageJson.devDependencies && typeof packageJson.devDependencies === 'object') {
+        result.devDependencies = Object.entries(
+          packageJson.devDependencies as Record<string, string>,
+        ).map(([name, version]) => ({
+          name,
+          version,
+          type: 'devDependency' as const,
+        }));
+      }
+
+      if (packageJson.peerDependencies && typeof packageJson.peerDependencies === 'object') {
+        result.peerDependencies = Object.entries(
+          packageJson.peerDependencies as Record<string, string>,
+        ).map(([name, version]) => ({
+          name,
+          version,
+          type: 'peerDependency' as const,
+        }));
+      }
+
+      if (
+        packageJson.optionalDependencies &&
+        typeof packageJson.optionalDependencies === 'object'
+      ) {
+        result.optionalDependencies = Object.entries(
+          packageJson.optionalDependencies as Record<string, string>,
+        ).map(([name, version]) => ({
+          name,
+          version,
+          type: 'optionalDependency' as const,
+        }));
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error parsing package.json:', error);
+      throw new Error('Invalid package.json format');
+    }
+  }
+
+  extractPackageNamesFromText(text: string): string[] {
+    // Extract package names from various formats
+    const patterns = [
+      // "package-name": "^1.0.0" or "package-name": "1.0.0"
+      /"([^"]+)":\s*["^~]?[\d.]+/g,
+      // package-name@1.0.0
+      /([a-zA-Z0-9@._-]+)@[\d.]+/g,
+      // package-name (standalone)
+      /\b([a-zA-Z0-9@._-]+)\b/g,
+    ];
+
+    const packageNames = new Set<string>();
+
+    for (const pattern of patterns) {
+      const matches = text.matchAll(pattern);
+      for (const match of matches) {
+        const name = match[1];
+        // Filter out common non-package names
+        if (
+          (name &&
+            name.length > 0 &&
+            !/^(true|false|null|undefined|function|class|const|let|var|import|export|from|require)$/.test(
+              name,
+            ) &&
+            !/^\d+$/.test(name) &&
+            !name.startsWith('@')) ||
+          (name.startsWith('@') && name.includes('/'))
+        ) {
+          packageNames.add(name);
+        }
+      }
+    }
+
+    return Array.from(packageNames);
+  }
+
+  async searchPackagesByNames(
+    packageNames: string[],
+  ): Promise<Record<string, PackageSearchResult[]>> {
+    try {
+      const results: Record<string, PackageSearchResult[]> = {};
+
+      for (const packageName of packageNames) {
+        try {
+          const searchResults = await this.searchPackages(packageName, 5);
+          results[packageName] = searchResults.results;
+        } catch (error) {
+          console.warn(`Failed to search for package ${packageName}:`, error);
+          results[packageName] = [];
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.error('Error searching packages by names:', error);
+      throw new Error('Failed to search packages by names');
     }
   }
 }
