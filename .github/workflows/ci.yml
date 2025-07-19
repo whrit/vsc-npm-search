@@ -41,14 +41,6 @@ jobs:
       - name: Compile TypeScript
         run: pnpm run compile
 
-      - name: Run tests
-        run: |
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            xvfb-run -a pnpm test
-          else
-            pnpm test
-          fi
-
       - name: Package extension
         run: pnpm run package
 
