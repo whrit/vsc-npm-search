@@ -525,16 +525,31 @@ export class NpmsService {
     ];
 
     const packageNames = new Set<string>();
+    const processedRanges: Array<{ start: number; end: number }> = [];
 
     for (const pattern of patterns) {
       const matches = text.matchAll(pattern);
       for (const match of matches) {
+        const matchStart = match.index;
+        const matchEnd = matchStart + match[0].length;
+
+        // Check if this match overlaps with a previously processed scoped package
+        const isOverlapping = processedRanges.some(
+          (range) => matchStart < range.end && matchEnd > range.start,
+        );
+
+        if (isOverlapping) {
+          continue; // Skip this match as it's part of a scoped package
+        }
+
         let name: string;
 
         // Handle scoped packages specially
         if (pattern.source.includes('@([a-zA-Z0-9._-]+)\\/([a-zA-Z0-9._-]+)')) {
           // For scoped packages, combine scope and package name
           name = `@${match[1]}/${match[2]}`;
+          // Record the range of this scoped package to prevent overlap
+          processedRanges.push({ start: matchStart, end: matchEnd });
         } else {
           name = match[1];
         }
@@ -547,6 +562,9 @@ export class NpmsService {
             name,
           ) &&
           !/^\d+$/.test(name) &&
+          // Exclude version numbers (pure numbers or version-like strings)
+          !/^[\d.]+$/.test(name) &&
+          !/^[\^~]?[\d.]+$/.test(name) &&
           // For scoped packages, ensure they have the proper format
           (name.startsWith('@') ? name.includes('/') : true) &&
           // Avoid adding individual parts of scoped packages

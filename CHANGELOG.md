@@ -9,14 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed scoped package name extraction (e.g., @eslint/js was being split into eslint and js)
+- Fixed scoped package name extraction (e.g., @types/node was being split into types and node)
 - Improved text selection search to properly handle scoped packages
 - Enhanced package name extraction algorithm for better accuracy
+- Prevented version numbers from being extracted as package names
+- Added overlap detection to prevent duplicate extraction of scoped package parts
 
 ### Enhanced
 
 - Better handling of scoped packages in text selection and clipboard search
 - Improved regex patterns for more accurate package name detection
+- More robust package name validation and filtering
 
 ## [1.1.1] - 2024-12-19
 
