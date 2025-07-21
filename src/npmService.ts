@@ -518,8 +518,10 @@ export class NpmsService {
       /"([^"]+)":\s*["^~]?[\d.]+/g,
       // package-name@1.0.0
       /([a-zA-Z0-9@._-]+)@[\d.]+/g,
-      // package-name (standalone)
-      /\b([a-zA-Z0-9@._-]+)\b/g,
+      // Scoped packages: @scope/package-name
+      /@([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)/g,
+      // Regular package names (but not scoped ones)
+      /\b([a-zA-Z0-9._-]+)\b/g,
     ];
 
     const packageNames = new Set<string>();
@@ -527,17 +529,28 @@ export class NpmsService {
     for (const pattern of patterns) {
       const matches = text.matchAll(pattern);
       for (const match of matches) {
-        const name = match[1];
-        // Filter out common non-package names
+        let name: string;
+
+        // Handle scoped packages specially
+        if (pattern.source.includes('@([a-zA-Z0-9._-]+)\\/([a-zA-Z0-9._-]+)')) {
+          // For scoped packages, combine scope and package name
+          name = `@${match[1]}/${match[2]}`;
+        } else {
+          name = match[1];
+        }
+
+        // Filter out common non-package names and validate
         if (
-          (name &&
-            name.length > 0 &&
-            !/^(true|false|null|undefined|function|class|const|let|var|import|export|from|require)$/.test(
-              name,
-            ) &&
-            !/^\d+$/.test(name) &&
-            !name.startsWith('@')) ||
-          (name.startsWith('@') && name.includes('/'))
+          name &&
+          name.length > 0 &&
+          !/^(true|false|null|undefined|function|class|const|let|var|import|export|from|require)$/.test(
+            name,
+          ) &&
+          !/^\d+$/.test(name) &&
+          // For scoped packages, ensure they have the proper format
+          (name.startsWith('@') ? name.includes('/') : true) &&
+          // Avoid adding individual parts of scoped packages
+          !(name.startsWith('@') && !name.includes('/'))
         ) {
           packageNames.add(name);
         }

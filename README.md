@@ -48,7 +48,7 @@ A VS Code extension that allows you to search npm packages directly from VS Code
 ### Text Selection Search
 
 - Select any text containing package names
-- Press `Ctrl+Shift+N` (or `Cmd+Shift+N` on Mac)
+- Press `Ctrl+Shift+H` (or `Cmd+Shift+H` on Mac)
 - Or right-click and select "NPM: Search Selected Text"
 - The extension will extract package names and search for them
 
