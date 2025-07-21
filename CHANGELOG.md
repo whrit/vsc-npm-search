@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2024-12-19
+
+### Fixed
+
+- Fixed scoped package name extraction (e.g., @types/node was being split into types and node)
+- Improved text selection search to properly handle scoped packages
+- Enhanced package name extraction algorithm for better accuracy
+- Prevented version numbers from being extracted as package names
+- Added overlap detection to prevent duplicate extraction of scoped package parts
+
+### Enhanced
+
+- Better handling of scoped packages in text selection and clipboard search
+- Improved regex patterns for more accurate package name detection
+- More robust package name validation and filtering
+
+## [1.1.3] - 2024-12-19
+
+### Fixed
+
+- Fixed scoped package name extraction (e.g., @types/node was being split into types and node)
+- Improved text selection search to properly handle scoped packages
+- Enhanced package name extraction algorithm for better accuracy
+- Prevented version numbers from being extracted as package names
+- Added overlap detection to prevent duplicate extraction of scoped package parts
+
+### Enhanced
+
+- Better handling of scoped packages in text selection and clipboard search
+- Improved regex patterns for more accurate package name detection
+- More robust package name validation and filtering
+
 ## [1.1.2] - 2024-12-19
 
 ### Fixed

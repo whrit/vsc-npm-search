@@ -142,18 +142,34 @@ This extension uses GitHub Actions for automated testing and publishing:
 
 - **Multi-platform testing** on Windows, macOS, and Linux
 - **Security audits** to check for vulnerabilities
-- **Automated publishing** to VS Code Marketplace on tag creation
+- **Automated publishing** to VS Code Marketplace on push to main
 - **Release creation** with generated release notes
 
 ### Publishing Process
 
-1. Create a new tag: `git tag v1.1.0`
-2. Push the tag: `git push origin v1.1.0`
-3. GitHub Actions will automatically:
+#### Automatic Release (Recommended)
+
+1. Push changes to the `main` branch
+2. GitHub Actions will automatically:
    - Run tests on all platforms
    - Perform security audit
+   - Bump version (patch by default)
+   - Create a git tag
    - Publish to VS Code Marketplace
    - Create a GitHub release
+
+#### Manual Release
+
+1. **Create a tag manually**: `git tag v1.1.5 && git push origin v1.1.5`
+2. **Use the release script**: `pnpm run release:patch` (or `minor`/`major`)
+3. **Manual workflow trigger**: Go to GitHub Actions → Release → "Run workflow"
+
+#### Manual Workflow Trigger
+
+1. Go to GitHub Actions → Release workflow
+2. Click "Run workflow"
+3. Select version bump type (patch/minor/major)
+4. The workflow will handle everything automatically
 
 ### Required Secrets
 

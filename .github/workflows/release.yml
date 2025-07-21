@@ -1,0 +1,146 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linting
+        run: pnpm run lint
+
+      - name: Compile TypeScript
+        run: pnpm run compile
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Handle version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Extract version from tag
+            TAG_VERSION="${GITHUB_REF#refs/tags/}"
+            TAG_VERSION="${TAG_VERSION#v}"
+            echo "Tag version: $TAG_VERSION"
+            echo "new_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+            
+            # Update package.json to match tag version
+            node -e "
+              const fs = require('fs');
+              const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+              pkg.version = '$TAG_VERSION';
+              fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+            "
+          else
+            # This is a main branch push - bump version
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              BUMP_TYPE="${{ github.event.inputs.version_bump }}"
+            else
+              BUMP_TYPE="patch"
+            fi
+            
+            echo "Bumping version with type: $BUMP_TYPE"
+            
+            # Get current version
+            CURRENT_VERSION=$(node -p "require('./package.json').version")
+            echo "Current version: $CURRENT_VERSION"
+            
+            # Bump version
+            if [ "$BUMP_TYPE" = "major" ]; then
+              NEW_VERSION=$(node -e "
+                const version = '$CURRENT_VERSION'.split('.');
+                version[0] = parseInt(version[0]) + 1;
+                version[1] = 0;
+                version[2] = 0;
+                console.log(version.join('.'));
+              ")
+            elif [ "$BUMP_TYPE" = "minor" ]; then
+              NEW_VERSION=$(node -e "
+                const version = '$CURRENT_VERSION'.split('.');
+                version[1] = parseInt(version[1]) + 1;
+                version[2] = 0;
+                console.log(version.join('.'));
+              ")
+            else
+              NEW_VERSION=$(node -e "
+                const version = '$CURRENT_VERSION'.split('.');
+                version[2] = parseInt(version[2]) + 1;
+                console.log(version.join('.'));
+              ")
+            fi
+            
+            echo "New version: $NEW_VERSION"
+            echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            
+            # Update package.json
+            node -e "
+              const fs = require('fs');
+              const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+              pkg.version = '$NEW_VERSION';
+              fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+            "
+            
+            # Create tag for main branch pushes
+            git add package.json
+            git commit -m "Bump version to $NEW_VERSION"
+            git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
+            git push origin main
+            git push origin "v$NEW_VERSION"
+          fi
+
+      - name: Package extension
+        run: pnpm run package
+
+      - name: Publish to VS Code Marketplace
+        run: pnpm run deploy
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: 'v${{ steps.version.outputs.new_version }}'
+          files: '*.vsix'
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
