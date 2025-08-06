@@ -15,6 +15,7 @@ A VS Code extension that allows you to search npm packages directly from VS Code
 - 📋 **Package.json Analysis** - Analyze dependencies in package.json files
 - 🔗 **Multi-Package Search** - Search multiple packages from selected text
 - 📋 **Clipboard Search** - Search packages from clipboard content
+- 🔄 **Update All Packages** - Update all packages in package.json to latest versions
 
 ## Installation
 
@@ -72,6 +73,15 @@ A VS Code extension that allows you to search npm packages directly from VS Code
 - Use Command Palette and run "NPM: Search from Clipboard"
 - Search for packages found in clipboard content
 
+### Update All Packages
+
+- Open a package.json file in VS Code
+- Click the "Update All" button in the status bar (bottom task bar)
+- Or press `Ctrl+Shift+U` (or `Cmd+Shift+U` on Mac)
+- Or use Command Palette and run "NPM: Update All Packages to Latest Versions"
+- Review the available updates and choose to apply them
+- The extension will update all packages to their latest versions
+
 ### Get Install Commands
 
 - Run "NPM: Get Install Command"
@@ -110,6 +120,13 @@ A VS Code extension that allows you to search npm packages directly from VS Code
 - Right-click on selected text to access NPM search features
 - Quick access to single and multi-package search
 - Seamless integration with VS Code workflow
+
+### Status Bar Integration
+
+- "Update All" button appears in the status bar when viewing package.json files
+- One-click access to update all packages to latest versions
+- Automatically shows/hides based on the active file
+- Visual indicator when package.json is open and ready for updates
 
 ## Development
 

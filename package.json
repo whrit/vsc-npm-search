@@ -3,17 +3,21 @@
   "displayName": "NPM Package Search",
   "description": "Search npm packages and get version info directly in VS Code",
   "icon": "icon-vsce-npm.png",
-  "version": "1.1.4",
+  "version": "1.2.3",
   "publisher": "Quikturn",
   "repository": {
     "type": "git",
     "url": "git://github.com/whrit/vsc-npm-search.git"
   },
   "engines": {
-    "vscode": "^1.96.2"
+    "vscode": "^1.93.0"
   },
   "categories": [
     "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:json",
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -57,6 +61,10 @@
       {
         "command": "npmSearch.searchFromClipboard",
         "title": "NPM: Search from Clipboard"
+      },
+      {
+        "command": "npmSearch.updateAllPackages",
+        "title": "NPM: Update All Packages to Latest Versions"
       }
     ],
     "keybindings": [
@@ -69,6 +77,12 @@
         "command": "npmSearch.searchSelectedText",
         "key": "ctrl+shift+h",
         "mac": "cmd+shift+h"
+      },
+      {
+        "command": "npmSearch.updateAllPackages",
+        "key": "ctrl+option+a",
+        "mac": "cmd+option+a",
+        "when": "resourceExtname == .json && resourceFilename == package.json"
       }
     ],
     "menus": {
@@ -118,7 +132,7 @@
   "devDependencies": {
     "@eslint/js": "^9.31.0",
     "@types/node": "^24.0.15",
-    "@types/vscode": "^1.96.0",
+    "@types/vscode": "^1.93.0",
     "@typescript-eslint/eslint-plugin": "^8.37.0",
     "@typescript-eslint/parser": "^8.37.0",
     "eslint": "^9.31.0",

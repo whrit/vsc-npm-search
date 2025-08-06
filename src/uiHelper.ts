@@ -6,6 +6,8 @@ import {
   PackageVersionHistory,
   PackageJsonInfo,
   PackageJsonDependency,
+  PackageUpdate,
+  PackageUpdateResult,
 } from './npmService';
 
 export class UIHelper {
@@ -456,5 +458,82 @@ export class UIHelper {
     }
 
     outputChannel.show();
+  }
+
+  async showPackageUpdates(updateResult: PackageUpdateResult): Promise<boolean> {
+    const outputChannel = vscode.window.createOutputChannel('NPM Package Updates');
+    outputChannel.clear();
+
+    outputChannel.appendLine('📦 Package Update Summary\n');
+
+    if (updateResult.packagesWithUpdates === 0) {
+      outputChannel.appendLine('✅ All packages are up to date!');
+      outputChannel.appendLine(`📊 Total packages checked: ${updateResult.totalPackages}`);
+    } else {
+      outputChannel.appendLine(
+        `🔄 ${updateResult.packagesWithUpdates} packages have updates available`,
+      );
+      outputChannel.appendLine(`📊 Total packages checked: ${updateResult.totalPackages}\n`);
+
+      // Group updates by type
+      const groupedUpdates = updateResult.updates.reduce(
+        (acc, update) => {
+          if (!acc[update.type]) {
+            acc[update.type] = [];
+          }
+          acc[update.type].push(update);
+          return acc;
+        },
+        {} as Record<string, PackageUpdate[]>,
+      );
+
+      for (const [type, updates] of Object.entries(groupedUpdates)) {
+        const updatesWithChanges = updates.filter((update) => update.hasUpdate);
+        if (updatesWithChanges.length > 0) {
+          outputChannel.appendLine(`📦 ${type}s with updates:`);
+          updatesWithChanges.forEach((update) => {
+            outputChannel.appendLine(
+              `  - ${update.name}: ${update.currentVersion} → ${update.latestVersion}`,
+            );
+          });
+          outputChannel.appendLine('');
+        }
+      }
+
+      // Show packages without updates
+      const packagesWithoutUpdates = updateResult.updates.filter((update) => !update.hasUpdate);
+      if (packagesWithoutUpdates.length > 0) {
+        outputChannel.appendLine('✅ Packages already up to date:');
+        packagesWithoutUpdates.forEach((update) => {
+          outputChannel.appendLine(`  - ${update.name}: ${update.currentVersion}`);
+        });
+        outputChannel.appendLine('');
+      }
+    }
+
+    outputChannel.show();
+
+    if (updateResult.packagesWithUpdates > 0) {
+      const action = await vscode.window.showInformationMessage(
+        `Found ${updateResult.packagesWithUpdates} package updates. Would you like to apply them?`,
+        'Apply Updates',
+        'View Changes',
+        'Cancel',
+      );
+
+      if (action === 'Apply Updates') {
+        return true;
+      } else if (action === 'View Changes') {
+        // Show the updated package.json content
+        const document = await vscode.workspace.openTextDocument({
+          content: updateResult.updatedPackageJson,
+          language: 'json',
+        });
+        await vscode.window.showTextDocument(document);
+        return false;
+      }
+    }
+
+    return false;
   }
 }

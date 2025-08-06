@@ -248,6 +248,21 @@ export interface PackageJsonInfo {
   optionalDependencies: PackageJsonDependency[];
 }
 
+export interface PackageUpdate {
+  name: string;
+  currentVersion: string;
+  latestVersion: string;
+  type: 'dependency' | 'devDependency' | 'peerDependency' | 'optionalDependency';
+  hasUpdate: boolean;
+}
+
+export interface PackageUpdateResult {
+  updates: PackageUpdate[];
+  totalPackages: number;
+  packagesWithUpdates: number;
+  updatedPackageJson: string;
+}
+
 export class NpmsService {
   private readonly _registryUrl = 'https://registry.npmjs.org';
   private readonly _searchUrl = 'http://registry.npmjs.com';
@@ -401,6 +416,149 @@ export class NpmsService {
     } catch (error) {
       console.error('Error getting multiple packages info:', error);
       throw new Error('Failed to get packages information');
+    }
+  }
+
+  async getLatestVersion(packageName: string): Promise<string> {
+    try {
+      const response = await axios.get<NpmRegistryPackageInfo>(
+        `${this._registryUrl}/${encodeURIComponent(packageName)}`,
+      );
+
+      const data = response.data;
+      return data['dist-tags'].latest;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        throw new Error(`Package "${packageName}" not found`);
+      }
+      console.error('Error getting latest version:', error);
+      throw new Error(`Failed to get latest version for package "${packageName}"`);
+    }
+  }
+
+  async getLatestVersionsForPackages(packageNames: string[]): Promise<Record<string, string>> {
+    try {
+      const promises = packageNames.map(async (name) => {
+        try {
+          const latestVersion = await this.getLatestVersion(name);
+          return { name, version: latestVersion };
+        } catch (error) {
+          console.warn(`Failed to get latest version for package ${name}:`, error);
+          return { name, version: null };
+        }
+      });
+
+      const results = await Promise.all(promises);
+      const versionMap: Record<string, string> = {};
+
+      results.forEach(({ name, version }) => {
+        if (version) {
+          versionMap[name] = version;
+        }
+      });
+
+      return versionMap;
+    } catch (error) {
+      console.error('Error getting latest versions for packages:', error);
+      throw new Error('Failed to get latest versions for packages');
+    }
+  }
+
+  async updateAllPackagesInPackageJson(packageJsonText: string): Promise<PackageUpdateResult> {
+    try {
+      // Parse the current package.json
+      const packageJson = JSON.parse(packageJsonText) as Record<string, unknown>;
+      const packageJsonInfo = this.parsePackageJsonFromText(packageJsonText);
+
+      // Collect all package names
+      const allDeps = [
+        ...packageJsonInfo.dependencies,
+        ...packageJsonInfo.devDependencies,
+        ...packageJsonInfo.peerDependencies,
+        ...packageJsonInfo.optionalDependencies,
+      ];
+
+      if (allDeps.length === 0) {
+        throw new Error('No dependencies found in package.json');
+      }
+
+      const packageNames = allDeps.map((dep) => dep.name);
+
+      // Get latest versions for all packages
+      const latestVersions = await this.getLatestVersionsForPackages(packageNames);
+
+      // Create updates array
+      const updates: PackageUpdate[] = allDeps.map((dep) => {
+        const latestVersion = latestVersions[dep.name];
+        const hasUpdate = Boolean(latestVersion && latestVersion !== dep.version);
+
+        return {
+          name: dep.name,
+          currentVersion: dep.version,
+          latestVersion: latestVersion || dep.version,
+          type: dep.type,
+          hasUpdate,
+        };
+      });
+
+      // Create updated package.json
+      const updatedPackageJson = { ...packageJson };
+
+      // Update dependencies
+      if (packageJson.dependencies && typeof packageJson.dependencies === 'object') {
+        updatedPackageJson.dependencies = { ...packageJson.dependencies };
+        updates
+          .filter((update) => update.type === 'dependency' && update.hasUpdate)
+          .forEach((update) => {
+            (updatedPackageJson.dependencies as Record<string, string>)[update.name] =
+              `^${update.latestVersion}`;
+          });
+      }
+
+      if (packageJson.devDependencies && typeof packageJson.devDependencies === 'object') {
+        updatedPackageJson.devDependencies = { ...packageJson.devDependencies };
+        updates
+          .filter((update) => update.type === 'devDependency' && update.hasUpdate)
+          .forEach((update) => {
+            (updatedPackageJson.devDependencies as Record<string, string>)[update.name] =
+              `^${update.latestVersion}`;
+          });
+      }
+
+      if (packageJson.peerDependencies && typeof packageJson.peerDependencies === 'object') {
+        updatedPackageJson.peerDependencies = { ...packageJson.peerDependencies };
+        updates
+          .filter((update) => update.type === 'peerDependency' && update.hasUpdate)
+          .forEach((update) => {
+            (updatedPackageJson.peerDependencies as Record<string, string>)[update.name] =
+              `^${update.latestVersion}`;
+          });
+      }
+
+      if (
+        packageJson.optionalDependencies &&
+        typeof packageJson.optionalDependencies === 'object'
+      ) {
+        updatedPackageJson.optionalDependencies = { ...packageJson.optionalDependencies };
+        updates
+          .filter((update) => update.type === 'optionalDependency' && update.hasUpdate)
+          .forEach((update) => {
+            (updatedPackageJson.optionalDependencies as Record<string, string>)[update.name] =
+              `^${update.latestVersion}`;
+          });
+      }
+
+      const packagesWithUpdates = updates.filter((update) => update.hasUpdate).length;
+
+      return {
+        updates,
+        totalPackages: allDeps.length,
+        packagesWithUpdates,
+        updatedPackageJson: JSON.stringify(updatedPackageJson, null, 2),
+      };
+    } catch (error) {
+      console.error('Error updating packages in package.json:', error);
+      throw new Error('Failed to update packages in package.json');
     }
   }
 

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2024-12-19
+
+### Added
+
+- **Update All Packages Feature**: Update all packages in package.json to their latest versions
+  - One-click update of all dependencies, devDependencies, peerDependencies, and optionalDependencies
+  - Status bar button appears when viewing package.json files
+  - Preview changes before applying updates
+  - Automatic version prefixing with caret (^) for semantic versioning
+  - New command: "NPM: Update All Packages to Latest Versions"
+  - Status bar integration with "Update All" button
+  - Keyboard shortcut: `Ctrl+Shift+U` (or `Cmd+Shift+U` on Mac)
+  - Comprehensive update summary with before/after version comparison
+
+### Enhanced
+
+- Improved package.json handling with better validation
+- Enhanced user experience with progress indicators and confirmation dialogs
+- Better error handling for network requests and package updates
+- Status bar item automatically shows/hides based on active file context
+
 ## [1.1.4] - 2024-12-19
 
 ### Fixed

@@ -57,6 +57,12 @@ try {
   console.log(`  git push origin main`);
   console.log(`  git push origin v${newVersion}`);
   console.log('\nOr run the GitHub Actions workflow manually.');
+  console.log('\nThe GitHub Actions workflow will automatically:');
+  console.log('  - Run tests and linting');
+  console.log('  - Build and package the extension');
+  console.log('  - Publish to VS Code Marketplace');
+  console.log('  - Publish to Open VSX Registry');
+  console.log('  - Create a GitHub release with the VSIX file');
 } catch (error) {
   console.error('Error during release:', error.message);
   process.exit(1);

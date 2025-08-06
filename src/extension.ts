@@ -8,6 +8,35 @@ export function activate(context: vscode.ExtensionContext): void {
   const npmsService = new NpmsService();
   const uiHelper = new UIHelper();
 
+  // Create status bar item for updating packages
+  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  statusBarItem.command = 'npmSearch.updateAllPackages';
+  statusBarItem.text = '$(refresh) Update All';
+  statusBarItem.tooltip = 'Update all packages in package.json to latest versions';
+
+  // Function to update status bar visibility
+  const updateStatusBarVisibility = () => {
+    const activeEditor = vscode.window.activeTextEditor;
+    if (
+      activeEditor &&
+      (activeEditor.document.fileName.endsWith('package.json') ||
+        activeEditor.document.fileName.endsWith('/package.json'))
+    ) {
+      statusBarItem.show();
+    } else {
+      statusBarItem.hide();
+    }
+  };
+
+  // Update visibility when active editor changes
+  vscode.window.onDidChangeActiveTextEditor(updateStatusBarVisibility, null, context.subscriptions);
+
+  // Update visibility when text document is opened
+  vscode.workspace.onDidOpenTextDocument(updateStatusBarVisibility, null, context.subscriptions);
+
+  // Initial visibility check
+  updateStatusBarVisibility();
+
   // Command: Search Package
   const searchCommand = vscode.commands.registerCommand('npmSearch.searchPackage', async () => {
     try {
@@ -578,6 +607,75 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
+  // Command: Update All Packages
+  const updateAllPackagesCommand = vscode.commands.registerCommand(
+    'npmSearch.updateAllPackages',
+    async () => {
+      try {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+          vscode.window.showInformationMessage('No active editor found');
+          return;
+        }
+
+        const document = editor.document;
+        if (document.fileName !== 'package.json' && !document.fileName.endsWith('/package.json')) {
+          vscode.window.showInformationMessage(
+            'Please open a package.json file to update packages',
+          );
+          return;
+        }
+
+        const text = document.getText();
+        if (!text.trim()) {
+          vscode.window.showInformationMessage('No content found in package.json');
+          return;
+        }
+
+        // Validate that it's a valid package.json
+        try {
+          JSON.parse(text);
+        } catch {
+          vscode.window.showErrorMessage('Invalid package.json format');
+          return;
+        }
+
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: 'Checking for package updates...',
+            cancellable: false,
+          },
+          async () => {
+            const updateResult = await npmsService.updateAllPackagesInPackageJson(text);
+            const shouldApply = await uiHelper.showPackageUpdates(updateResult);
+
+            if (shouldApply) {
+              // Apply the updates by replacing the file content
+              const edit = new vscode.WorkspaceEdit();
+              const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(text.length),
+              );
+              edit.replace(document.uri, fullRange, updateResult.updatedPackageJson);
+
+              const success = await vscode.workspace.applyEdit(edit);
+              if (success) {
+                vscode.window.showInformationMessage(
+                  `Successfully updated ${updateResult.packagesWithUpdates} packages!`,
+                );
+              } else {
+                vscode.window.showErrorMessage('Failed to apply package updates');
+              }
+            }
+          },
+        );
+      } catch (error) {
+        vscode.window.showErrorMessage(`Error updating packages: ${String(error)}`);
+      }
+    },
+  );
+
   context.subscriptions.push(
     searchCommand,
     advancedSearchCommand,
@@ -589,6 +687,8 @@ export function activate(context: vscode.ExtensionContext): void {
     searchMultiplePackagesCommand,
     analyzePackageJsonCommand,
     searchFromClipboardCommand,
+    updateAllPackagesCommand,
+    statusBarItem,
   );
 }
 
