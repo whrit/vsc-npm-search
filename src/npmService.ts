@@ -1,4 +1,4 @@
-import axios from 'axios';
+// Replaced axios with built-in fetch to avoid runtime dependency issues
 
 export interface PackageSearchResult {
   package: {
@@ -250,22 +250,48 @@ export interface PackageJsonInfo {
 
 export class NpmsService {
   private readonly _registryUrl = 'https://registry.npmjs.org';
-  private readonly _searchUrl = 'http://registry.npmjs.com';
+  private readonly _searchUrl = 'https://registry.npmjs.com';
+
+  private async _fetchJson<T>(
+    url: string,
+    params?: Record<string, string | number | boolean>,
+  ): Promise<T> {
+    const finalUrl = new URL(url);
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        finalUrl.searchParams.set(key, String(value));
+      }
+    }
+
+    const response = await fetch(finalUrl.toString(), {
+      headers: { accept: 'application/json' },
+    });
+
+    if (!response.ok) {
+      let text = '';
+      try {
+        text = await response.text();
+      } catch {
+        // ignore
+      }
+      throw new Error(`HTTP ${response.status} ${response.statusText}${text ? `: ${text}` : ''}`);
+    }
+
+    return (await response.json()) as T;
+  }
 
   async searchPackages(query: string, size = 25, from = 0): Promise<SearchResponse> {
     try {
-      const response = await axios.get<NpmRegistrySearchResponse>(
+      const data = await this._fetchJson<NpmRegistrySearchResponse>(
         `${this._searchUrl}/-/v1/search`,
         {
-          params: {
-            text: query,
-            size: Math.min(size, 250),
-            from: Math.min(from, 5000),
-          },
+          text: query,
+          size: Math.min(size, 250),
+          from: Math.min(from, 5000),
         },
       );
 
-      const results: PackageSearchResult[] = response.data.objects.map((obj) => ({
+      const results: PackageSearchResult[] = data.objects.map((obj) => ({
         package: {
           name: obj.package.name,
           scope: obj.package.scope || 'unscoped',
@@ -284,7 +310,7 @@ export class NpmsService {
       }));
 
       return {
-        total: response.data.total,
+        total: data.total,
         results,
       };
     } catch (error) {
@@ -295,17 +321,15 @@ export class NpmsService {
 
   async getSuggestions(query: string, size = 25): Promise<SearchSuggestion[]> {
     try {
-      const response = await axios.get<NpmRegistrySearchResponse>(
+      const data = await this._fetchJson<NpmRegistrySearchResponse>(
         `${this._searchUrl}/-/v1/search`,
         {
-          params: {
-            text: query,
-            size: Math.min(size, 100),
-          },
+          text: query,
+          size: Math.min(size, 100),
         },
       );
 
-      return response.data.objects.map((obj) => ({
+      return data.objects.map((obj) => ({
         package: {
           name: obj.package.name,
           scope: obj.package.scope || 'unscoped',
@@ -331,11 +355,9 @@ export class NpmsService {
 
   async getPackageInfo(packageName: string): Promise<PackageInfo> {
     try {
-      const response = await axios.get<NpmRegistryPackageInfo>(
+      const data = await this._fetchJson<NpmRegistryPackageInfo>(
         `${this._registryUrl}/${encodeURIComponent(packageName)}`,
       );
-
-      const data = response.data;
       const latestVersion = data['dist-tags'].latest;
       const latestVersionData = data.versions[latestVersion];
 
@@ -368,7 +390,8 @@ export class NpmsService {
 
       return packageInfo;
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('HTTP 404')) {
         throw new Error(`Package "${packageName}" not found`);
       }
       console.error('Error getting package info:', error);
@@ -406,11 +429,9 @@ export class NpmsService {
 
   async getPackageVersionHistory(packageName: string, limit = 50): Promise<PackageVersionHistory> {
     try {
-      const response = await axios.get<NpmRegistryPackageInfo>(
+      const data = await this._fetchJson<NpmRegistryPackageInfo>(
         `${this._registryUrl}/${encodeURIComponent(packageName)}`,
       );
-
-      const data = response.data;
       const versions: VersionInfo[] = [];
       const versionEntries = Object.entries(data.versions);
 
@@ -443,7 +464,8 @@ export class NpmsService {
         totalVersions: Object.keys(data.versions).length,
       };
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('HTTP 404')) {
         throw new Error(`Package "${packageName}" not found`);
       }
       console.error('Error getting package version history:', error);

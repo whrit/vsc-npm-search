@@ -3,14 +3,14 @@
   "displayName": "NPM Package Search",
   "description": "Search npm packages and get version info directly in VS Code",
   "icon": "icon-vsce-npm.png",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "publisher": "Quikturn",
   "repository": {
     "type": "git",
     "url": "git://github.com/whrit/vsc-npm-search.git"
   },
   "engines": {
-    "vscode": "^1.96.2"
+    "vscode": "^1.99.3"
   },
   "categories": [
     "Other"
@@ -113,7 +113,7 @@
   "license": "ISC",
   "packageManager": "pnpm@10.13.1",
   "dependencies": {
-    "axios": "^1.10.0"
+    
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",
