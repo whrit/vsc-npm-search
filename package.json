@@ -3,7 +3,7 @@
   "displayName": "NPM & PyPI Package Search",
   "description": "Search npm and PyPI packages, get version info, and analyze dependencies directly in VS Code",
   "icon": "icon-vsce-npm.png",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "publisher": "Quikturn",
   "repository": {
     "type": "git",
@@ -92,8 +92,8 @@
       },
       {
         "command": "npmSearch.smartSearch",
-        "key": "ctrl+shift+p",
-        "mac": "cmd+shift+p",
+        "key": "ctrl+shift+s",
+        "mac": "cmd+shift+s",
         "when": "editorTextFocus"
       },
       {
