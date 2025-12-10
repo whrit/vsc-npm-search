@@ -3,7 +3,7 @@
   "displayName": "NPM & PyPI Package Search",
   "description": "Search npm and PyPI packages, get version info, and analyze dependencies directly in VS Code",
   "icon": "icon-vsce-npm.png",
-  "version": "1.1.5",
+  "version": "1.2.0",
   "publisher": "Quikturn",
   "repository": {
     "type": "git",
@@ -153,9 +153,7 @@
   "author": "Beckett Whritenour",
   "license": "ISC",
   "packageManager": "pnpm@10.13.1",
-  "dependencies": {
-    
-  },
+  "dependencies": {},
   "devDependencies": {
     "@eslint/js": "^9.31.0",
     "@types/node": "^24.0.15",
