@@ -9,64 +9,146 @@ import {
 } from './npmService';
 import { PyPiPackageDetails, PyPiSearchResult, PyPiVersionHistory } from './pypiService';
 
+/**
+ * Custom QuickPickItem interface for npm package search results
+ */
+interface PackageQuickPickItem extends vscode.QuickPickItem {
+  result: PackageSearchResult;
+}
+
+/**
+ * Custom QuickPickItem interface for npm search suggestions
+ */
+interface SuggestionQuickPickItem extends vscode.QuickPickItem {
+  suggestion: SearchSuggestion;
+}
+
+/**
+ * Custom QuickPickItem interface for PyPI search results
+ */
+interface PyPiQuickPickItem extends vscode.QuickPickItem {
+  result: PyPiSearchResult;
+}
+
+/**
+ * Custom QuickPickItem interface for version history
+ */
+interface VersionQuickPickItem extends vscode.QuickPickItem {
+  version: string;
+}
+
 export class UIHelper {
+  /**
+   * Reusable button for copying version to clipboard
+   */
+  private readonly _copyVersionButton: vscode.QuickInputButton = {
+    iconPath: new vscode.ThemeIcon('copy'),
+    tooltip: 'Copy version to clipboard',
+  };
   async showPackageQuickPick(
     packages: PackageSearchResult[],
   ): Promise<PackageSearchResult | undefined> {
-    const items = packages.map((result) => {
-      const pkg = result.package;
-      const flags = this._getPackageFlags(result.flags);
+    return new Promise((resolve) => {
+      const quickPick = vscode.window.createQuickPick<PackageQuickPickItem>();
 
-      return {
-        label: `$(package) ${pkg.name}${flags}`,
-        description: `v${pkg.version}`,
-        detail: pkg.description || 'No description available',
-        buttons: [
-          {
-            iconPath: new vscode.ThemeIcon('info'),
-            tooltip: 'View package details',
-          },
-        ],
-        result: result,
-      };
+      const items: PackageQuickPickItem[] = packages.map((result) => {
+        const pkg = result.package;
+        const flags = this._getPackageFlags(result.flags);
+
+        return {
+          label: `$(package) ${pkg.name}${flags}`,
+          description: `v${pkg.version}`,
+          detail: pkg.description || 'No description available',
+          buttons: [this._copyVersionButton],
+          result: result,
+        };
+      });
+
+      quickPick.items = items;
+      quickPick.placeholder = 'Select a package to view details';
+      quickPick.matchOnDescription = true;
+      quickPick.matchOnDetail = true;
+
+      // Handle button clicks on items (copy version to clipboard)
+      quickPick.onDidTriggerItemButton(async (e) => {
+        if (e.button === this._copyVersionButton) {
+          const version = e.item.result.package.version;
+          await vscode.env.clipboard.writeText(version);
+          vscode.window.showInformationMessage(`Copied version: ${version}`);
+          // QuickPick stays open - user can copy more versions or select a package
+        }
+      });
+
+      // Handle item selection
+      quickPick.onDidAccept(() => {
+        const selected = quickPick.selectedItems[0];
+        quickPick.hide();
+        resolve(selected?.result);
+      });
+
+      // Handle dismissal
+      quickPick.onDidHide(() => {
+        quickPick.dispose();
+        resolve(undefined);
+      });
+
+      quickPick.show();
     });
-
-    const selected = await vscode.window.showQuickPick(items, {
-      placeHolder: 'Select a package to view details',
-      matchOnDescription: true,
-      matchOnDetail: true,
-    });
-
-    return selected?.result;
   }
 
   async showSuggestionsQuickPick(
     suggestions: SearchSuggestion[],
   ): Promise<SearchSuggestion | undefined> {
-    const items = suggestions.map((suggestion) => {
-      const pkg = suggestion.package;
-      const flags = this._getPackageFlags(suggestion.flags);
+    return new Promise((resolve) => {
+      const quickPick = vscode.window.createQuickPick<SuggestionQuickPickItem>();
 
-      // Use highlight if available, otherwise use regular name
-      const label = suggestion.highlight
-        ? suggestion.highlight.replace(/<em>/g, '').replace(/<\/em>/g, '')
-        : pkg.name;
+      const items: SuggestionQuickPickItem[] = suggestions.map((suggestion) => {
+        const pkg = suggestion.package;
+        const flags = this._getPackageFlags(suggestion.flags);
 
-      return {
-        label: `$(package) ${label}${flags}`,
-        description: `v${pkg.version}`,
-        detail: pkg.description || 'No description available',
-        suggestion: suggestion,
-      };
+        // Use highlight if available, otherwise use regular name
+        const label = suggestion.highlight
+          ? suggestion.highlight.replace(/<em>/g, '').replace(/<\/em>/g, '')
+          : pkg.name;
+
+        return {
+          label: `$(package) ${label}${flags}`,
+          description: `v${pkg.version}`,
+          detail: pkg.description || 'No description available',
+          buttons: [this._copyVersionButton],
+          suggestion: suggestion,
+        };
+      });
+
+      quickPick.items = items;
+      quickPick.placeholder = 'Select a package suggestion';
+      quickPick.matchOnDescription = true;
+      quickPick.matchOnDetail = true;
+
+      // Handle button clicks on items (copy version to clipboard)
+      quickPick.onDidTriggerItemButton(async (e) => {
+        if (e.button === this._copyVersionButton) {
+          const version = e.item.suggestion.package.version;
+          await vscode.env.clipboard.writeText(version);
+          vscode.window.showInformationMessage(`Copied version: ${version}`);
+        }
+      });
+
+      // Handle item selection
+      quickPick.onDidAccept(() => {
+        const selected = quickPick.selectedItems[0];
+        quickPick.hide();
+        resolve(selected?.suggestion);
+      });
+
+      // Handle dismissal
+      quickPick.onDidHide(() => {
+        quickPick.dispose();
+        resolve(undefined);
+      });
+
+      quickPick.show();
     });
-
-    const selected = await vscode.window.showQuickPick(items, {
-      placeHolder: 'Select a package suggestion',
-      matchOnDescription: true,
-      matchOnDetail: true,
-    });
-
-    return selected?.suggestion;
   }
 
   private _getPackageFlags(flags?: {
@@ -412,20 +494,46 @@ export class UIHelper {
   async showVersionQuickPick(
     versions: { version: string; publishedAt: string }[],
   ): Promise<string | undefined> {
-    const items = versions.map((version) => ({
-      label: `$(tag) ${version.version}`,
-      description: new Date(version.publishedAt).toLocaleDateString(),
-      detail: `Published: ${new Date(version.publishedAt).toLocaleString()}`,
-      version: version.version,
-    }));
+    return new Promise((resolve) => {
+      const quickPick = vscode.window.createQuickPick<VersionQuickPickItem>();
 
-    const selected = await vscode.window.showQuickPick(items, {
-      placeHolder: 'Select a version to view details',
-      matchOnDescription: true,
-      matchOnDetail: true,
+      const items: VersionQuickPickItem[] = versions.map((v) => ({
+        label: `$(tag) ${v.version}`,
+        description: new Date(v.publishedAt).toLocaleDateString(),
+        detail: `Published: ${new Date(v.publishedAt).toLocaleString()}`,
+        buttons: [this._copyVersionButton],
+        version: v.version,
+      }));
+
+      quickPick.items = items;
+      quickPick.placeholder = 'Select a version to view details';
+      quickPick.matchOnDescription = true;
+      quickPick.matchOnDetail = true;
+
+      // Handle button clicks on items (copy version to clipboard)
+      quickPick.onDidTriggerItemButton(async (e) => {
+        if (e.button === this._copyVersionButton) {
+          const version = e.item.version;
+          await vscode.env.clipboard.writeText(version);
+          vscode.window.showInformationMessage(`Copied version: ${version}`);
+        }
+      });
+
+      // Handle item selection
+      quickPick.onDidAccept(() => {
+        const selected = quickPick.selectedItems[0];
+        quickPick.hide();
+        resolve(selected?.version);
+      });
+
+      // Handle dismissal
+      quickPick.onDidHide(() => {
+        quickPick.dispose();
+        resolve(undefined);
+      });
+
+      quickPick.show();
     });
-
-    return selected?.version;
   }
 
   showSearchResultsByPackage(results: Record<string, PackageSearchResult[]>): void {
@@ -466,20 +574,46 @@ export class UIHelper {
       return undefined;
     }
 
-    const items = results.map((result) => ({
-      label: `$(package) ${result.name}`,
-      description: `v${result.version}`,
-      detail: result.summary || 'No description available',
-      result: result,
-    }));
+    return new Promise((resolve) => {
+      const quickPick = vscode.window.createQuickPick<PyPiQuickPickItem>();
 
-    const selected = await vscode.window.showQuickPick(items, {
-      placeHolder: 'Select a package to view details',
-      matchOnDescription: true,
-      matchOnDetail: true,
+      const items: PyPiQuickPickItem[] = results.map((result) => ({
+        label: `$(package) ${result.name}`,
+        description: `v${result.version}`,
+        detail: result.summary || 'No description available',
+        buttons: [this._copyVersionButton],
+        result: result,
+      }));
+
+      quickPick.items = items;
+      quickPick.placeholder = 'Select a package to view details';
+      quickPick.matchOnDescription = true;
+      quickPick.matchOnDetail = true;
+
+      // Handle button clicks on items (copy version to clipboard)
+      quickPick.onDidTriggerItemButton(async (e) => {
+        if (e.button === this._copyVersionButton) {
+          const version = e.item.result.version;
+          await vscode.env.clipboard.writeText(version);
+          vscode.window.showInformationMessage(`Copied version: ${version}`);
+        }
+      });
+
+      // Handle item selection
+      quickPick.onDidAccept(() => {
+        const selected = quickPick.selectedItems[0];
+        quickPick.hide();
+        resolve(selected?.result);
+      });
+
+      // Handle dismissal
+      quickPick.onDidHide(() => {
+        quickPick.dispose();
+        resolve(undefined);
+      });
+
+      quickPick.show();
     });
-
-    return selected?.result;
   }
 
   async showPyPiPackageDetails(packageDetails: PyPiPackageDetails): Promise<void> {
