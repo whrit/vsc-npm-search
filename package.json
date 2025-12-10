@@ -1,7 +1,7 @@
 {
   "name": "npm-package-search",
-  "displayName": "NPM Package Search",
-  "description": "Search npm packages and get version info directly in VS Code",
+  "displayName": "NPM & PyPI Package Search",
+  "description": "Search npm and PyPI packages, get version info, and analyze dependencies directly in VS Code",
   "icon": "icon-vsce-npm.png",
   "version": "1.1.5",
   "publisher": "Quikturn",
@@ -57,6 +57,26 @@
       {
         "command": "npmSearch.searchFromClipboard",
         "title": "NPM: Search from Clipboard"
+      },
+      {
+        "command": "npmSearch.pypiSearchPackage",
+        "title": "PyPI: Search Package"
+      },
+      {
+        "command": "npmSearch.pypiVersionHistory",
+        "title": "PyPI: View Package Version History"
+      },
+      {
+        "command": "npmSearch.analyzeRequirements",
+        "title": "PyPI: Analyze requirements.txt"
+      },
+      {
+        "command": "npmSearch.smartSearch",
+        "title": "Package Search (Smart - Auto-detect npm/PyPI)"
+      },
+      {
+        "command": "npmSearch.smartSearchSelected",
+        "title": "Package Search: Search Selected Text (Smart)"
       }
     ],
     "keybindings": [
@@ -69,6 +89,18 @@
         "command": "npmSearch.searchSelectedText",
         "key": "ctrl+shift+h",
         "mac": "cmd+shift+h"
+      },
+      {
+        "command": "npmSearch.smartSearch",
+        "key": "ctrl+shift+p",
+        "mac": "cmd+shift+p",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "npmSearch.smartSearchSelected",
+        "key": "ctrl+shift+y",
+        "mac": "cmd+shift+y",
+        "when": "editorHasSelection"
       }
     ],
     "menus": {
@@ -80,6 +112,11 @@
         },
         {
           "command": "npmSearch.searchMultiplePackages",
+          "group": "npm-search",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "npmSearch.smartSearchSelected",
           "group": "npm-search",
           "when": "editorHasSelection"
         }
@@ -102,12 +139,16 @@
   },
   "keywords": [
     "npm",
+    "pypi",
+    "python",
     "package",
     "search",
     "registry",
     "dependencies",
     "version",
-    "package.json"
+    "package.json",
+    "requirements.txt",
+    "pip"
   ],
   "author": "Beckett Whritenour",
   "license": "ISC",

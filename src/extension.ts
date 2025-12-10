@@ -1,12 +1,16 @@
 import * as vscode from 'vscode';
 import { NpmsService } from './npmService';
+import { PyPiService } from './pypiService';
 import { UIHelper } from './uiHelper';
+import { ContextDetector } from './contextDetector';
 
 export function activate(context: vscode.ExtensionContext): void {
-  console.log('NPM Package Search extension is now active!');
+  console.log('NPM/PyPI Package Search extension is now active!');
 
   const npmsService = new NpmsService();
+  const pypiService = new PyPiService();
   const uiHelper = new UIHelper();
+  const contextDetector = new ContextDetector();
 
   // Command: Search Package
   const searchCommand = vscode.commands.registerCommand('npmSearch.searchPackage', async () => {
@@ -578,6 +582,343 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
+  // PyPI COMMANDS
+
+  // Command: Search PyPI Package
+  const pypiSearchCommand = vscode.commands.registerCommand(
+    'npmSearch.pypiSearchPackage',
+    async () => {
+      try {
+        const query = await vscode.window.showInputBox({
+          prompt: 'Enter Python package name to search on PyPI',
+          placeHolder: 'e.g., requests, numpy, django',
+        });
+
+        if (!query) {
+          return;
+        }
+
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Searching PyPI for "${query}"...`,
+            cancellable: false,
+          },
+          async () => {
+            const packageDetails = await pypiService.getPackageInfo(query);
+            await uiHelper.showPyPiPackageDetails(packageDetails);
+          },
+        );
+      } catch (error) {
+        vscode.window.showErrorMessage(`Error searching PyPI: ${String(error)}`);
+      }
+    },
+  );
+
+  // Command: View PyPI Package Version History
+  const pypiVersionHistoryCommand = vscode.commands.registerCommand(
+    'npmSearch.pypiVersionHistory',
+    async () => {
+      try {
+        const packageName = await vscode.window.showInputBox({
+          prompt: 'Enter Python package name to view version history',
+          placeHolder: 'e.g., requests, numpy, django',
+        });
+
+        if (!packageName) {
+          return;
+        }
+
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Getting PyPI version history for "${packageName}"...`,
+            cancellable: false,
+          },
+          async () => {
+            const versionHistory = await pypiService.getPackageVersionHistory(packageName);
+            uiHelper.showPyPiVersionHistory(versionHistory);
+          },
+        );
+      } catch (error) {
+        vscode.window.showErrorMessage(`Error getting PyPI version history: ${String(error)}`);
+      }
+    },
+  );
+
+  // Command: Analyze requirements.txt
+  const analyzeRequirementsCommand = vscode.commands.registerCommand(
+    'npmSearch.analyzeRequirements',
+    async () => {
+      try {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+          vscode.window.showInformationMessage('No active editor found');
+          return;
+        }
+
+        const document = editor.document;
+        const text = document.getText();
+
+        if (!text.trim()) {
+          vscode.window.showInformationMessage('No content found in current file');
+          return;
+        }
+
+        const packages = pypiService.parseRequirementsTxt(text);
+
+        if (packages.length === 0) {
+          vscode.window.showInformationMessage('No packages found in requirements file');
+          return;
+        }
+
+        const outputChannel = vscode.window.createOutputChannel('Requirements Analysis');
+        outputChannel.clear();
+        outputChannel.appendLine('📋 Requirements.txt Analysis\n');
+        outputChannel.appendLine(`Total Packages: ${packages.length}\n`);
+
+        packages.forEach((pkg, index) => {
+          outputChannel.appendLine(
+            `${index + 1}. ${pkg.name}${pkg.version ? ` ${pkg.version}` : ''}`,
+          );
+        });
+
+        outputChannel.show();
+
+        const action = await vscode.window.showInformationMessage(
+          `Found ${packages.length} packages. Would you like to search any of them?`,
+          'Search Single',
+          'Search Multiple',
+          'No Thanks',
+        );
+
+        if (action === 'Search Single') {
+          const packageNames = packages.map((p) => p.name);
+          const selected = await vscode.window.showQuickPick(packageNames, {
+            placeHolder: 'Select a package to search on PyPI',
+          });
+
+          if (selected) {
+            await vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: `Searching PyPI for "${selected}"...`,
+                cancellable: false,
+              },
+              async () => {
+                const packageDetails = await pypiService.getPackageInfo(selected);
+                await uiHelper.showPyPiPackageDetails(packageDetails);
+              },
+            );
+          }
+        } else if (action === 'Search Multiple') {
+          const packageNames = packages.map((p) => p.name);
+          const selected = await vscode.window.showQuickPick(packageNames, {
+            placeHolder: 'Select packages to search (use space to select multiple)',
+            canPickMany: true,
+          });
+
+          if (selected && selected.length > 0) {
+            await vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: `Searching PyPI for ${selected.length} packages...`,
+                cancellable: false,
+              },
+              async () => {
+                const results = await pypiService.searchPackagesByNames(selected);
+                uiHelper.showPyPiSearchResultsByPackage(results);
+              },
+            );
+          }
+        }
+      } catch (error) {
+        vscode.window.showErrorMessage(`Error analyzing requirements: ${String(error)}`);
+      }
+    },
+  );
+
+  // SMART COMMANDS (Context-Aware)
+
+  // Command: Smart Search (detects npm or PyPI based on context)
+  const smartSearchCommand = vscode.commands.registerCommand('npmSearch.smartSearch', async () => {
+    try {
+      const editor = vscode.window.activeTextEditor;
+      const context = contextDetector.detectEcosystem(editor);
+
+      let ecosystem = context.ecosystem;
+      if (context.confidence !== 'high') {
+        ecosystem = await contextDetector.promptForEcosystem(context);
+      }
+
+      const query = await vscode.window.showInputBox({
+        prompt: `Enter ${contextDetector.getEcosystemDisplayName(ecosystem)} package name to search`,
+        placeHolder:
+          ecosystem === 'npm' ? 'e.g., express, react, lodash' : 'e.g., requests, numpy, django',
+      });
+
+      if (!query) {
+        return;
+      }
+
+      if (ecosystem === 'npm') {
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Searching npm for "${query}"...`,
+            cancellable: false,
+          },
+          async () => {
+            const results = await npmsService.searchPackages(query);
+            if (results.results.length === 0) {
+              vscode.window.showInformationMessage(`No packages found for "${query}"`);
+              return;
+            }
+            const selected = await uiHelper.showPackageQuickPick(results.results);
+            if (selected) {
+              await uiHelper.showPackageDetails(selected);
+            }
+          },
+        );
+      } else if (ecosystem === 'pypi') {
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Searching PyPI for "${query}"...`,
+            cancellable: false,
+          },
+          async () => {
+            const packageDetails = await pypiService.getPackageInfo(query);
+            await uiHelper.showPyPiPackageDetails(packageDetails);
+          },
+        );
+      }
+    } catch (error) {
+      vscode.window.showErrorMessage(`Error in smart search: ${String(error)}`);
+    }
+  });
+
+  // Command: Smart Search Selected Text
+  const smartSearchSelectedCommand = vscode.commands.registerCommand(
+    'npmSearch.smartSearchSelected',
+    async () => {
+      try {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+          vscode.window.showInformationMessage('No active editor found');
+          return;
+        }
+
+        const context = contextDetector.detectEcosystem(editor);
+        let ecosystem = context.ecosystem;
+
+        if (context.confidence !== 'high') {
+          ecosystem = await contextDetector.promptForEcosystem(context);
+        }
+
+        const selection = editor.selection;
+        const text = editor.document.getText(selection);
+
+        if (!text.trim()) {
+          vscode.window.showInformationMessage('No text selected');
+          return;
+        }
+
+        // Extract package names based on ecosystem
+        let packageNames: string[] = [];
+        if (ecosystem === 'npm') {
+          packageNames = npmsService.extractPackageNamesFromText(text);
+        } else if (ecosystem === 'pypi') {
+          packageNames = pypiService.extractPackageNamesFromText(text);
+        }
+
+        if (packageNames.length === 0) {
+          vscode.window.showInformationMessage('No package names found in selected text');
+          return;
+        }
+
+        if (packageNames.length === 1) {
+          const packageName = packageNames[0];
+          if (ecosystem === 'npm') {
+            await vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: `Searching npm for "${packageName}"...`,
+                cancellable: false,
+              },
+              async () => {
+                const results = await npmsService.searchPackages(packageName);
+                if (results.results.length > 0) {
+                  const selected = await uiHelper.showPackageQuickPick(results.results);
+                  if (selected) {
+                    await uiHelper.showPackageDetails(selected);
+                  }
+                } else {
+                  vscode.window.showInformationMessage(`No packages found for "${packageName}"`);
+                }
+              },
+            );
+          } else if (ecosystem === 'pypi') {
+            await vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: `Searching PyPI for "${packageName}"...`,
+                cancellable: false,
+              },
+              async () => {
+                const packageDetails = await pypiService.getPackageInfo(packageName);
+                await uiHelper.showPyPiPackageDetails(packageDetails);
+              },
+            );
+          }
+        } else {
+          const selectedPackage = await vscode.window.showQuickPick(packageNames, {
+            placeHolder: 'Select a package to search',
+          });
+
+          if (selectedPackage) {
+            if (ecosystem === 'npm') {
+              await vscode.window.withProgress(
+                {
+                  location: vscode.ProgressLocation.Notification,
+                  title: `Searching npm for "${selectedPackage}"...`,
+                  cancellable: false,
+                },
+                async () => {
+                  const results = await npmsService.searchPackages(selectedPackage);
+                  if (results.results.length > 0) {
+                    const selected = await uiHelper.showPackageQuickPick(results.results);
+                    if (selected) {
+                      await uiHelper.showPackageDetails(selected);
+                    }
+                  } else {
+                    vscode.window.showInformationMessage(
+                      `No packages found for "${selectedPackage}"`,
+                    );
+                  }
+                },
+              );
+            } else if (ecosystem === 'pypi') {
+              await vscode.window.withProgress(
+                {
+                  location: vscode.ProgressLocation.Notification,
+                  title: `Searching PyPI for "${selectedPackage}"...`,
+                  cancellable: false,
+                },
+                async () => {
+                  const packageDetails = await pypiService.getPackageInfo(selectedPackage);
+                  await uiHelper.showPyPiPackageDetails(packageDetails);
+                },
+              );
+            }
+          }
+        }
+      } catch (error) {
+        vscode.window.showErrorMessage(`Error in smart search selected: ${String(error)}`);
+      }
+    },
+  );
+
   context.subscriptions.push(
     searchCommand,
     advancedSearchCommand,
@@ -589,6 +930,11 @@ export function activate(context: vscode.ExtensionContext): void {
     searchMultiplePackagesCommand,
     analyzePackageJsonCommand,
     searchFromClipboardCommand,
+    pypiSearchCommand,
+    pypiVersionHistoryCommand,
+    analyzeRequirementsCommand,
+    smartSearchCommand,
+    smartSearchSelectedCommand,
   );
 }
 

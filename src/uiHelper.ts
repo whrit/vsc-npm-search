@@ -7,6 +7,7 @@ import {
   PackageJsonInfo,
   PackageJsonDependency,
 } from './npmService';
+import { PyPiPackageDetails, PyPiSearchResult, PyPiVersionHistory } from './pypiService';
 
 export class UIHelper {
   async showPackageQuickPick(
@@ -447,6 +448,202 @@ export class UIHelper {
           outputChannel.appendLine(`     Score: ${result.score.final.toFixed(2)}`);
           if (pkg.description) {
             outputChannel.appendLine(`     Description: ${pkg.description}`);
+          }
+          outputChannel.appendLine('');
+        });
+      }
+
+      outputChannel.appendLine('');
+    }
+
+    outputChannel.show();
+  }
+
+  // PyPI-specific methods
+
+  async showPyPiSearchResults(results: PyPiSearchResult[]): Promise<PyPiSearchResult | undefined> {
+    if (results.length === 0) {
+      return undefined;
+    }
+
+    const items = results.map((result) => ({
+      label: `$(package) ${result.name}`,
+      description: `v${result.version}`,
+      detail: result.summary || 'No description available',
+      result: result,
+    }));
+
+    const selected = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Select a package to view details',
+      matchOnDescription: true,
+      matchOnDetail: true,
+    });
+
+    return selected?.result;
+  }
+
+  async showPyPiPackageDetails(packageDetails: PyPiPackageDetails): Promise<void> {
+    const info = packageDetails.info;
+
+    const actions = await vscode.window.showQuickPick(
+      [
+        { label: '$(copy) Copy Install Command', value: 'install' },
+        { label: '$(info) View Full Details', value: 'details' },
+        { label: '$(browser) Open in Browser', value: 'browser' },
+        { label: '$(history) View Version History', value: 'history' },
+      ],
+      {
+        placeHolder: `${info.name}@${info.version} - What would you like to do?`,
+      },
+    );
+
+    if (!actions) return;
+
+    switch (actions.value) {
+      case 'install':
+        await this._showPyPiInstallOptions(info.name);
+        break;
+      case 'details':
+        this._showDetailedPyPiPackageInfo(packageDetails);
+        break;
+      case 'browser':
+        vscode.env.openExternal(vscode.Uri.parse(`https://pypi.org/project/${info.name}/`));
+        break;
+      case 'history':
+        // This would require fetching version history
+        vscode.window.showInformationMessage('Version history view - to be implemented');
+        break;
+    }
+  }
+
+  private async _showPyPiInstallOptions(packageName: string): Promise<void> {
+    const options = await vscode.window.showQuickPick(
+      [
+        { label: 'pip install', command: `pip install ${packageName}` },
+        { label: 'pip install (editable)', command: `pip install -e ${packageName}` },
+        { label: 'conda install', command: `conda install ${packageName}` },
+        { label: 'poetry add', command: `poetry add ${packageName}` },
+        { label: 'poetry add --dev', command: `poetry add --dev ${packageName}` },
+      ],
+      {
+        placeHolder: 'Select install command',
+      },
+    );
+
+    if (options) {
+      await vscode.env.clipboard.writeText(options.command);
+      vscode.window.showInformationMessage(`Copied: ${options.command}`);
+    }
+  }
+
+  private _showDetailedPyPiPackageInfo(packageDetails: PyPiPackageDetails): void {
+    const outputChannel = vscode.window.createOutputChannel('PyPI Package Info');
+    outputChannel.clear();
+
+    const info = packageDetails.info;
+
+    outputChannel.appendLine(`📦 Package: ${info.name}`);
+    outputChannel.appendLine(`📌 Version: ${info.version}`);
+    outputChannel.appendLine(`📝 Summary: ${info.summary || 'No summary available'}`);
+
+    if (info.author) {
+      outputChannel.appendLine(`👤 Author: ${info.author}`);
+      if (info.author_email) {
+        outputChannel.appendLine(`   Email: ${info.author_email}`);
+      }
+    }
+
+    if (info.license) {
+      outputChannel.appendLine(`📄 License: ${info.license}`);
+    }
+
+    if (info.requires_python) {
+      outputChannel.appendLine(`🐍 Requires Python: ${info.requires_python}`);
+    }
+
+    outputChannel.appendLine('\n🔗 Links:');
+    outputChannel.appendLine(`  - PyPI: https://pypi.org/project/${info.name}/`);
+    if (info.home_page) {
+      outputChannel.appendLine(`  - Homepage: ${info.home_page}`);
+    }
+    if (info.project_urls) {
+      Object.entries(info.project_urls).forEach(([key, value]) => {
+        outputChannel.appendLine(`  - ${key}: ${value}`);
+      });
+    }
+
+    outputChannel.appendLine('\n📥 Install Commands:');
+    outputChannel.appendLine(`  pip:    pip install ${info.name}`);
+    outputChannel.appendLine(`  conda:  conda install ${info.name}`);
+    outputChannel.appendLine(`  poetry: poetry add ${info.name}`);
+
+    if (info.keywords) {
+      outputChannel.appendLine(`\n🏷️  Keywords: ${info.keywords}`);
+    }
+
+    if (info.requires_dist && info.requires_dist.length > 0) {
+      outputChannel.appendLine(`\n📦 Dependencies (${info.requires_dist.length}):`);
+      info.requires_dist.slice(0, 20).forEach((dep) => {
+        outputChannel.appendLine(`  - ${dep}`);
+      });
+      if (info.requires_dist.length > 20) {
+        outputChannel.appendLine(`  ... and ${info.requires_dist.length - 20} more`);
+      }
+    }
+
+    if (info.classifiers && info.classifiers.length > 0) {
+      outputChannel.appendLine(`\n🏷️  Classifiers:`);
+      info.classifiers.slice(0, 15).forEach((classifier) => {
+        outputChannel.appendLine(`  - ${classifier}`);
+      });
+      if (info.classifiers.length > 15) {
+        outputChannel.appendLine(`  ... and ${info.classifiers.length - 15} more`);
+      }
+    }
+
+    outputChannel.show();
+  }
+
+  showPyPiVersionHistory(versionHistory: PyPiVersionHistory): void {
+    const outputChannel = vscode.window.createOutputChannel('PyPI Package Version History');
+    outputChannel.clear();
+
+    outputChannel.appendLine(`📦 Package: ${versionHistory.name}`);
+    outputChannel.appendLine(`📊 Total Versions: ${versionHistory.totalVersions}`);
+    outputChannel.appendLine(
+      `📋 Showing: ${versionHistory.versions.length} most recent versions\n`,
+    );
+
+    for (const version of versionHistory.versions) {
+      outputChannel.appendLine(`🔸 Version: ${version.version}`);
+      outputChannel.appendLine(`   📅 Published: ${new Date(version.uploadTime).toLocaleString()}`);
+
+      if (version.requiresPython) {
+        outputChannel.appendLine(`   🐍 Requires Python: ${version.requiresPython}`);
+      }
+
+      outputChannel.appendLine('');
+    }
+
+    outputChannel.show();
+  }
+
+  showPyPiSearchResultsByPackage(results: Record<string, PyPiSearchResult[]>): void {
+    const outputChannel = vscode.window.createOutputChannel('PyPI Search Results');
+    outputChannel.clear();
+
+    outputChannel.appendLine('🔍 PyPI Search Results by Package\n');
+
+    for (const [packageName, searchResults] of Object.entries(results)) {
+      outputChannel.appendLine(`📦 ${packageName}:`);
+
+      if (searchResults.length === 0) {
+        outputChannel.appendLine('  No results found');
+      } else {
+        searchResults.forEach((result, index) => {
+          outputChannel.appendLine(`  ${index + 1}. ${result.name}@${result.version}`);
+          if (result.summary) {
+            outputChannel.appendLine(`     Summary: ${result.summary}`);
           }
           outputChannel.appendLine('');
         });
