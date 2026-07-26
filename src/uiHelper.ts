@@ -6,6 +6,7 @@ import {
   PackageVersionHistory,
   PackageJsonInfo,
   PackageJsonDependency,
+  VersionInfo,
 } from './npmService';
 
 export class UIHelper {
@@ -98,6 +99,7 @@ export class UIHelper {
       [
         { label: '$(copy) Copy Install Command', value: 'install' },
         { label: '$(info) View Full Details', value: 'details' },
+        { label: '$(history) View Version History', value: 'versionHistory' },
         { label: '$(browser) Open in Browser', value: 'browser' },
         { label: '$(github) View Repository', value: 'repo' },
         { label: '$(home) View Homepage', value: 'homepage' },
@@ -115,6 +117,9 @@ export class UIHelper {
         break;
       case 'details':
         this._showDetailedPackageInfo(result);
+        break;
+      case 'versionHistory':
+        await vscode.commands.executeCommand('npmSearch.viewVersionHistory', pkg.name);
         break;
       case 'browser':
         vscode.env.openExternal(vscode.Uri.parse(`https://www.npmjs.com/package/${pkg.name}`));
@@ -318,6 +323,51 @@ export class UIHelper {
       }
 
       outputChannel.appendLine('');
+    }
+
+    outputChannel.show();
+  }
+
+  showVersionDetail(packageName: string, version: VersionInfo): void {
+    const outputChannel = vscode.window.createOutputChannel('NPM Package Version History');
+    outputChannel.clear();
+
+    outputChannel.appendLine(`📦 ${packageName}@${version.version}`);
+    outputChannel.appendLine(`📅 Published: ${new Date(version.publishedAt).toLocaleString()}`);
+
+    if (version.description) {
+      outputChannel.appendLine(`📝 Description: ${version.description}`);
+    }
+    if (version.license) {
+      outputChannel.appendLine(`📄 License: ${version.license}`);
+    }
+    if (version.author) {
+      outputChannel.appendLine(`👤 Author: ${version.author.name || 'Unknown'}`);
+    }
+
+    if (version.dependencies && Object.keys(version.dependencies).length > 0) {
+      outputChannel.appendLine(`\n📦 Dependencies (${Object.keys(version.dependencies).length}):`);
+      for (const [name, range] of Object.entries(version.dependencies)) {
+        outputChannel.appendLine(`  - ${name}: ${range}`);
+      }
+    }
+
+    if (version.devDependencies && Object.keys(version.devDependencies).length > 0) {
+      outputChannel.appendLine(
+        `\n🔧 Dev Dependencies (${Object.keys(version.devDependencies).length}):`,
+      );
+      for (const [name, range] of Object.entries(version.devDependencies)) {
+        outputChannel.appendLine(`  - ${name}: ${range}`);
+      }
+    }
+
+    if (version.peerDependencies && Object.keys(version.peerDependencies).length > 0) {
+      outputChannel.appendLine(
+        `\n🔗 Peer Dependencies (${Object.keys(version.peerDependencies).length}):`,
+      );
+      for (const [name, range] of Object.entries(version.peerDependencies)) {
+        outputChannel.appendLine(`  - ${name}: ${range}`);
+      }
     }
 
     outputChannel.show();

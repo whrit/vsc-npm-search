@@ -247,12 +247,14 @@ export function activate(context: vscode.ExtensionContext): void {
   // Command: View Package Version History
   const versionHistoryCommand = vscode.commands.registerCommand(
     'npmSearch.viewVersionHistory',
-    async () => {
+    async (prefilledName?: string) => {
       try {
-        const packageName = await vscode.window.showInputBox({
-          prompt: 'Enter npm package name to view version history',
-          placeHolder: 'e.g., express, react, lodash',
-        });
+        const packageName =
+          prefilledName ??
+          (await vscode.window.showInputBox({
+            prompt: 'Enter npm package name to view version history',
+            placeHolder: 'e.g., express, react, lodash',
+          }));
 
         if (!packageName) {
           return;
@@ -266,7 +268,20 @@ export function activate(context: vscode.ExtensionContext): void {
           },
           async () => {
             const versionHistory = await npmsService.getPackageVersionHistory(packageName);
-            uiHelper.showVersionHistory(versionHistory);
+
+            const selectedVersion = await uiHelper.showVersionQuickPick(
+              versionHistory.versions.map((v) => ({
+                version: v.version,
+                publishedAt: v.publishedAt,
+              })),
+            );
+
+            if (selectedVersion) {
+              const info = versionHistory.versions.find((v) => v.version === selectedVersion);
+              if (info) {
+                uiHelper.showVersionDetail(packageName, info);
+              }
+            }
           },
         );
       } catch (error) {
@@ -303,26 +318,42 @@ export function activate(context: vscode.ExtensionContext): void {
         }
 
         if (packageNames.length === 1) {
-          // Single package - search directly
+          // Single package - offer quick action choice
           const packageName = packageNames[0];
-          await vscode.window.withProgress(
-            {
-              location: vscode.ProgressLocation.Notification,
-              title: `Searching for "${packageName}"...`,
-              cancellable: false,
-            },
-            async () => {
-              const results = await npmsService.searchPackages(packageName);
-              if (results.results.length > 0) {
-                const selected = await uiHelper.showPackageQuickPick(results.results);
-                if (selected) {
-                  await uiHelper.showPackageDetails(selected);
-                }
-              } else {
-                vscode.window.showInformationMessage(`No packages found for "${packageName}"`);
-              }
-            },
+          const action = await vscode.window.showQuickPick(
+            [
+              { label: '$(search) Search Packages', value: 'search' },
+              { label: '$(history) View Version History', value: 'versionHistory' },
+            ],
+            { placeHolder: `${packageName} - What would you like to do?` },
           );
+
+          if (!action) {
+            return;
+          }
+
+          if (action.value === 'versionHistory') {
+            await vscode.commands.executeCommand('npmSearch.viewVersionHistory', packageName);
+          } else {
+            await vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: `Searching for "${packageName}"...`,
+                cancellable: false,
+              },
+              async () => {
+                const results = await npmsService.searchPackages(packageName);
+                if (results.results.length > 0) {
+                  const selected = await uiHelper.showPackageQuickPick(results.results);
+                  if (selected) {
+                    await uiHelper.showPackageDetails(selected);
+                  }
+                } else {
+                  vscode.window.showInformationMessage(`No packages found for "${packageName}"`);
+                }
+              },
+            );
+          }
         } else {
           // Multiple packages - let user choose
           const selectedPackage = await vscode.window.showQuickPick(packageNames, {
