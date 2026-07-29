@@ -461,12 +461,17 @@ export class UIHelper {
   async showVersionQuickPick(
     versions: { version: string; publishedAt: string }[],
   ): Promise<string | undefined> {
-    const items = versions.map((version) => ({
-      label: `$(tag) ${version.version}`,
-      description: new Date(version.publishedAt).toLocaleDateString(),
-      detail: `Published: ${new Date(version.publishedAt).toLocaleString()}`,
-      version: version.version,
-    }));
+    const items = versions.map((version) => {
+      const published = new Date(version.publishedAt);
+      const daysAgo = Math.floor((Date.now() - published.getTime()) / 86_400_000);
+      const ago = daysAgo === 0 ? 'today' : daysAgo === 1 ? '1 day ago' : `${daysAgo} days ago`;
+      return {
+        label: `$(tag) ${version.version}`,
+        description: `${published.toLocaleDateString()} (${ago})`,
+        detail: `Published: ${published.toLocaleString()}`,
+        version: version.version,
+      };
+    });
 
     const selected = await vscode.window.showQuickPick(items, {
       placeHolder: 'Select a version to view details',

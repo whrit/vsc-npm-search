@@ -3,7 +3,7 @@
   "displayName": "NPM Package Search",
   "description": "Search npm packages and get version info directly in VS Code",
   "icon": "icon-vsce-npm.png",
-  "version": "1.1.5",
+  "version": "1.2.1",
   "publisher": "Quikturn",
   "repository": {
     "type": "git",
@@ -87,8 +87,9 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "pnpm run lint && pnpm run compile",
+    "vscode:prepublish": "pnpm run lint && pnpm run bundle",
     "compile": "tsc -p ./",
+    "bundle": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
@@ -121,11 +122,12 @@
     "@types/vscode": "^1.96.0",
     "@typescript-eslint/eslint-plugin": "^8.37.0",
     "@typescript-eslint/parser": "^8.37.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.28.1",
     "eslint": "^9.31.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.3",
     "prettier": "^3.5.3",
-    "typescript": "^5.8.3",
-    "@vscode/vsce": "^3.0.0"
+    "typescript": "^5.8.3"
   }
 }
