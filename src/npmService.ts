@@ -600,4 +600,39 @@ export class NpmsService {
       throw new Error('Failed to search packages by names');
     }
   }
+
+  async getLatestStableVersion(packageName: string, minAgeDays: number): Promise<string | null> {
+    try {
+      const response = await axios.get<NpmRegistryPackageInfo>(
+        `${this._registryUrl}/${encodeURIComponent(packageName)}`,
+      );
+
+      const data = response.data;
+      const cutoff = Date.now() - minAgeDays * 86_400_000;
+
+      // Filter to stable, non-prerelease versions published at least minAgeDays ago
+      const eligible = Object.keys(data.versions).filter(
+        (v) => data.time[v] && !/-.+$/.test(v) && new Date(data.time[v]).getTime() <= cutoff,
+      );
+
+      if (eligible.length > 0) {
+        // Pick the highest semver, not the most recently published
+        eligible.sort((a, b) => {
+          const pa = a.split('.').map(Number);
+          const pb = b.split('.').map(Number);
+          for (let i = 0; i < 3; i++) {
+            if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pb[i] ?? 0) - (pa[i] ?? 0);
+          }
+          return 0;
+        });
+        return eligible[0];
+      }
+
+      // All stable versions are newer than the cutoff — return dist-tags.latest
+      return data['dist-tags'].latest;
+    } catch {
+      console.warn(`Failed to get stable version for ${packageName}`);
+      return null;
+    }
+  }
 }

@@ -609,6 +609,149 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
+  // Command: Update All Dependencies to Latest Stable
+  const updateDepsCommand = vscode.commands.registerCommand(
+    'npmSearch.updateDependencies',
+    async () => {
+      try {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+          vscode.window.showInformationMessage('No active editor found');
+          return;
+        }
+
+        const fileName = editor.document.fileName;
+        if (!fileName.endsWith('package.json')) {
+          vscode.window.showInformationMessage('Active file is not a package.json');
+          return;
+        }
+
+        const text = editor.document.getText();
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(text) as Record<string, unknown>;
+        } catch {
+          vscode.window.showErrorMessage('Failed to parse package.json');
+          return;
+        }
+
+        // Collect all deps
+        const depSections = [
+          'dependencies',
+          'devDependencies',
+          'peerDependencies',
+          'optionalDependencies',
+        ] as const;
+        const allDeps: { name: string; current: string; section: string }[] = [];
+
+        for (const section of depSections) {
+          const deps = parsed[section];
+          if (deps && typeof deps === 'object') {
+            for (const [name, version] of Object.entries(deps as Record<string, string>)) {
+              allDeps.push({ name, current: version, section });
+            }
+          }
+        }
+
+        if (allDeps.length === 0) {
+          vscode.window.showInformationMessage('No dependencies found in package.json');
+          return;
+        }
+
+        // Resolve latest stable versions in parallel
+        const updates: { name: string; current: string; next: string; section: string }[] = [];
+
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: 'Resolving latest stable versions...',
+            cancellable: false,
+          },
+          async (progress) => {
+            const total = allDeps.length;
+            let done = 0;
+
+            const results = await Promise.all(
+              allDeps.map(async (dep) => {
+                const stable = await npmsService.getLatestStableVersion(dep.name, 7);
+                done++;
+                progress.report({
+                  increment: (1 / total) * 100,
+                  message: `(${done}/${total}) ${dep.name}`,
+                });
+                return { ...dep, stable };
+              }),
+            );
+
+            for (const r of results) {
+              if (!r.stable) continue;
+              // Strip prefix (^, ~, >=, etc.) to compare bare versions
+              const bareCurrentVersion = r.current.replace(/^[^0-9]*/, '');
+              if (r.stable !== bareCurrentVersion) {
+                const prefix = r.current.match(/^[^0-9]*/)?.[0] ?? '';
+                updates.push({
+                  name: r.name,
+                  current: r.current,
+                  next: `${prefix}${r.stable}`,
+                  section: r.section,
+                });
+              }
+            }
+          },
+        );
+
+        if (updates.length === 0) {
+          vscode.window.showInformationMessage('All dependencies are already up to date.');
+          return;
+        }
+
+        // Show preview and confirm
+        const items = updates.map((u) => ({
+          label: `$(package) ${u.name}`,
+          description: `${u.current} → ${u.next}`,
+          detail: u.section,
+          picked: true,
+          update: u,
+        }));
+
+        const selected = await vscode.window.showQuickPick(items, {
+          placeHolder: `${updates.length} update(s) available — select which to apply`,
+          canPickMany: true,
+        });
+
+        if (!selected || selected.length === 0) {
+          return;
+        }
+
+        // Apply updates via text replacement to preserve formatting
+        const edit = new vscode.WorkspaceEdit();
+        let docText = editor.document.getText();
+
+        for (const item of selected) {
+          const { name, current, next } = item.update;
+          // Match "package-name": "current-version" in the raw text
+          const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const versionEscaped = current.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const pattern = new RegExp(`("${escaped}"\\s*:\\s*)"${versionEscaped}"`);
+          docText = docText.replace(pattern, `$1"${next}"`);
+        }
+
+        const fullRange = new vscode.Range(
+          editor.document.positionAt(0),
+          editor.document.positionAt(editor.document.getText().length),
+        );
+        edit.replace(editor.document.uri, fullRange, docText);
+        await vscode.workspace.applyEdit(edit);
+
+        vscode.window.showInformationMessage(
+          `Updated ${selected.length} dependency version(s). Versions are at least 7 days old.`,
+        );
+      } catch (error) {
+        vscode.window.showErrorMessage(`Error updating dependencies: ${String(error)}`);
+      }
+    },
+  );
+
   context.subscriptions.push(
     searchCommand,
     advancedSearchCommand,
@@ -620,6 +763,7 @@ export function activate(context: vscode.ExtensionContext): void {
     searchMultiplePackagesCommand,
     analyzePackageJsonCommand,
     searchFromClipboardCommand,
+    updateDepsCommand,
   );
 }
 
